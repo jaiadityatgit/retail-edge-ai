@@ -592,22 +592,31 @@ function updateDashboardView(data) {
 
     const shelfPill = document.getElementById('shelf-status-pill');
     const shelfCard = document.getElementById('shelf-kpi-card');
+    const shelfLastTx = document.getElementById('shelf-last-transaction');
+    if (shelfLastTx && shelf.last_transaction) {
+        shelfLastTx.innerText = shelf.last_transaction;
+    }
+
     if (shelfPill) {
         if (shelf.is_occluded) {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-800/80';
-            shelfPill.innerText = '🟡 Customer Browsing (Alerts Paused)';
+            shelfPill.innerText = '🟡 Shopper Browsing (Alerts Paused)';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-amber';
         } else if (shelf.status === 'OUT_OF_STOCK_ALERT' || shelf.alert_active) {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-red-950/80 text-red-300 border border-red-800/80 animate-pulse';
-            shelfPill.innerText = '🔴 URGENT: Stock Depleted';
+            shelfPill.innerText = '🔴 CRITICAL: Out of Stock (> 2.0s)';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-red';
+        } else if (shelf.status === 'LOW_STOCK_WARNING') {
+            shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-600/80 animate-pulse';
+            shelfPill.innerText = '🟠 Stock Low (≤20%) — Restock Approaching';
+            if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-amber';
         } else if (shelf.status === 'PENDING_OOS') {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-yellow-950/80 text-yellow-300 border border-yellow-800/80';
             shelfPill.innerText = '⏳ Verifying Empty Shelf...';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4';
         } else {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80';
-            shelfPill.innerText = '🟢 Fully Stocked & Optimal';
+            shelfPill.innerText = '🟢 Inventory Healthy (Optimal)';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4';
         }
     }
@@ -648,9 +657,12 @@ function updateDashboardView(data) {
         if (shelf.status === 'OUT_OF_STOCK_ALERT') {
             soundManager.playAlertTone('urgent');
             addStaffAlert('🔴 URGENT RESTOCK', 'Shelf Tier-1 is depleted (0 items). Restock beverages immediately.', 'Dispatch Staff', 'border-red-800 bg-red-950/40 text-red-200');
+        } else if (shelf.status === 'LOW_STOCK_WARNING') {
+            soundManager.playAlertTone('normal');
+            addStaffAlert('🟠 LOW STOCK WARNING', `Shelf inventory is low (${stockCount}/${shelfCapacity} items remaining). Prepare restock.`, 'Prepare Stock', 'border-amber-800 bg-amber-950/30 text-amber-200');
         } else if (shelf.status === 'CUSTOMER_INTERACTING') {
-            addStaffAlert('🟡 CUSTOMER BROWSING', 'Customer interacting at Shelf ROI. Restock alarms suppressed by CSIM.', 'Monitoring', 'border-amber-800 bg-amber-950/30 text-amber-200');
-        } else if (shelf.status === 'OPTIMAL' && lastShelfStatus === 'OUT_OF_STOCK_ALERT') {
+            addStaffAlert('🟡 CUSTOMER BROWSING', 'Shopper interacting at Shelf ROI. Restock alarms suppressed by CSIM.', 'Monitoring', 'border-amber-800 bg-amber-950/30 text-amber-200');
+        } else if (shelf.status === 'OPTIMAL' && (lastShelfStatus === 'OUT_OF_STOCK_ALERT' || lastShelfStatus === 'LOW_STOCK_WARNING')) {
             soundManager.playAlertTone('normal');
             addStaffAlert('🟢 RESTOCK CONFIRMED', 'Inventory replenished to optimal capacity.', 'Resolved', 'border-emerald-800 bg-emerald-950/30 text-emerald-200');
         }
@@ -660,7 +672,7 @@ function updateDashboardView(data) {
     if (queue.status !== lastQueueStatus) {
         if (queue.status === 'CONGESTION_WARNING') {
             soundManager.playAlertTone('urgent');
-            addStaffAlert('🚨 CASHIER ALERT', `Queue length ≥${queue.customer_count} persons. Est. wait: ${queue.estimated_wait_min}m. Open Register 2.`, 'Open Counter 2', 'border-red-800 bg-red-950/40 text-red-200');
+            addStaffAlert('🚨 CASHIER ALERT', `Queue length ≥${queue.customer_count} shoppers. Est. wait: ${queue.estimated_wait_min}m. Open Register 2.`, 'Open Counter 2', 'border-red-800 bg-red-950/40 text-red-200');
         }
         lastQueueStatus = queue.status;
     }

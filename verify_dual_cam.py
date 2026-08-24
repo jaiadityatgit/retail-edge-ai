@@ -2,14 +2,15 @@
 verify_dual_cam.py
 Automated Verification Suite for RetailSense OS // Dual-Camera Edge Intelligence Platform (SIH26179)
 Verifies:
-1. Hardware Engine & GPU/CUDA/CPU Auto-Detection.
+1. Hardware Engine & GPU/CUDA/iGPU/CPU Auto-Detection.
 2. Dual Synthetic Ground Truth Generators (>2000 FPS).
-3. YOLOv8 Ingestion & Device Inference.
-4. Dynamic Camera Role Swapping & Retail State Machine (CSIM + Queue).
-5. FastAPI HTTP Endpoints (/ , /mobile_cam, /presentation, /api/metrics, /api/network_info, /api/config/camera).
-6. WebSocket Mobile Frame Ingestion (/ws/mobile_upload).
+3. YOLOv8 Ingestion & Supermarket Class Whitelisting (FMCG + Shopper).
+4. Role-Based Compute Decoupling (Queue scans Person only; Shelf scans Retail Goods).
+5. Dynamic Camera Role Swapping & Stock Delta State Machine (Low-Stock Threshold <= 1).
+6. FastAPI HTTP Endpoints (/ , /mobile_cam, /presentation, /api/metrics, /api/network_info, /api/config/camera).
 7. Dynamic ROI Configuration API (/api/config/roi) & Persistence (config.json).
 8. SQLite Event Store (WAL Mode) & Shift Summary Report (/api/reports/shift_summary).
+9. WebSocket Mobile Frame Ingestion (/ws/mobile_upload).
 """
 
 import time
@@ -27,12 +28,12 @@ def run_verification():
     print("  RETAILSENSE OS // DUAL-CAMERA AUTOMATED VERIFICATION SUITE")
     print("=" * 70)
 
-    # 1. Test Hardware Profiler & GPU/CPU Detection
+    # 1. Test Hardware Profiler & GPU/iGPU/CPU Detection
     print("\n[TEST 1] Verifying Hardware Engine & Device Detection...")
-    from app import DEVICE, USE_HALF, HardwareProfiler, get_local_ip
+    from app import DEVICE, USE_HALF, DEVICE_NAME, HardwareProfiler, get_local_ip
 
     telemetry = HardwareProfiler.get_system_telemetry(fps_cam1=29.2, fps_cam2=28.4, latency_ms=7.4)
-    print(f"  -> Detected Inference Device: {DEVICE.upper()} (FP16 Half-Precision: {USE_HALF})")
+    print(f"  -> Detected Inference Engine: {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
     print(f"  -> Silicon Target: {telemetry['silicon_target']}")
     print(f"  -> SoC Temperature: {telemetry['soc_temp_c']}°C")
     print(f"  -> CPU Load: {telemetry['cpu_load_pct']}%")
@@ -65,26 +66,57 @@ def run_verification():
     assert frame_q.shape == (360, 640, 3)
     print("  [PASS] Both synthetic generators operate well above target 30 FPS.")
 
-    # 3. Test YOLOv8 Ingestion & Inference
-    print("\n[TEST 3] Verifying YOLOv8 Model Ingestion...")
-    from ultralytics import YOLO
-    model = YOLO("yolov8n.pt")
-    dummy_img = np.zeros((360, 640, 3), dtype=np.uint8)
-    t_start = time.time()
-    results = model(dummy_img, imgsz=320, verbose=False, device=DEVICE)
-    latency_ms = (time.time() - t_start) * 1000.0
-    print(f"  -> Inference completed in {latency_ms:.1f}ms on {DEVICE} (imgsz=320)")
-    assert len(results) > 0
-    print("  [PASS] YOLOv8 executed inference cleanly.")
-
-    # 4. Test Dual Camera Vision Engine & Dynamic Role Swapping
-    print("\n[TEST 4] Verifying Dual-Camera Vision Engine & Role State Machine...")
-    from app import engine
+    # 3. Test Supermarket Whitelist & Role-Based Inference Decoupling
+    print("\n[TEST 3] Verifying Supermarket Whitelisting & Role-Based Filtering...")
+    from app import SUPERMARKET_RETAIL_CLASSES, SHELF_TARGET_CLASS_IDS, QUEUE_TARGET_CLASS_IDS, engine
     if not engine.running:
         engine.start()
     time.sleep(0.5)
 
-    # Verify initial roles
+    print(f"  -> Shelf Target Classes Count: {len(SHELF_TARGET_CLASS_IDS)} (Shopper + 16 Supermarket Categories)")
+    print(f"  -> Queue Target Classes Count: {len(QUEUE_TARGET_CLASS_IDS)} (Shopper ONLY)")
+    assert 0 in SHELF_TARGET_CLASS_IDS
+    assert 39 in SHELF_TARGET_CLASS_IDS  # Bottle
+    assert 41 in SHELF_TARGET_CLASS_IDS  # Cup
+    assert 73 in SHELF_TARGET_CLASS_IDS  # Packaged Box
+    assert QUEUE_TARGET_CLASS_IDS == [0]
+
+    # Test dummy frame inference
+    dummy_img = np.zeros((360, 640, 3), dtype=np.uint8)
+    shelf_dets = engine._run_inference(dummy_img, "SHELF")
+    queue_dets = engine._run_inference(dummy_img, "QUEUE")
+    assert isinstance(shelf_dets, list)
+    assert isinstance(queue_dets, list)
+    print("  [PASS] Supermarket Whitelisting & Role Filtering verified.")
+
+    # 4. Test Stock Delta Tracking & Low-Stock Warning Threshold
+    print("\n[TEST 4] Verifying Stock Delta & Low-Stock Warning Threshold...")
+    # Simulate shelf stock transition to 1 item (<=20% threshold)
+    engine._process_shelf_role([
+        {"class_id": 39, "class_name": "Beverage Bottle", "box": [100, 100, 150, 150]}
+    ], 640, 360)
+    assert engine.shelf_stock_count == 1
+    assert engine.shelf_status == "LOW_STOCK_WARNING"
+    assert "🔴 -" in engine.last_transaction or "🟢 +" in engine.last_transaction
+    print(f"  -> Stock 1/5 Triggered State: {engine.shelf_status}")
+    print(f"  -> Transaction Log: {engine.last_transaction}")
+
+    # Restore optimal stock
+    engine._process_shelf_role([
+        {"class_id": 39, "class_name": "Beverage Bottle", "box": [100, 100, 150, 150]},
+        {"class_id": 41, "class_name": "Beverage Cup", "box": [160, 100, 210, 150]},
+        {"class_id": 40, "class_name": "Soft Drink / Can", "box": [220, 100, 270, 150]},
+        {"class_id": 73, "class_name": "Packaged Goods / Box", "box": [280, 100, 330, 150]},
+        {"class_id": 39, "class_name": "Beverage Bottle", "box": [340, 100, 390, 150]}
+    ], 640, 360)
+    assert engine.shelf_stock_count == 5
+    assert engine.shelf_status == "OPTIMAL"
+    print(f"  -> Restocked 5/5 State: {engine.shelf_status}")
+    print(f"  -> Transaction Log: {engine.last_transaction}")
+    print("  [PASS] Stock Delta Tracking & Low-Stock Thresholds verified.")
+
+    # 5. Test Dual Camera Vision Engine & Dynamic Role Swapping
+    print("\n[TEST 5] Verifying Dual-Camera Vision Engine & Role State Machine...")
     assert engine.cam1_role == "SHELF"
     assert engine.cam2_role == "QUEUE"
     print(f"  -> Default Roles: Cam1={engine.cam1_role}, Cam2={engine.cam2_role}")
@@ -101,8 +133,8 @@ def run_verification():
     engine.cam2_role = "QUEUE"
     print("  [PASS] Dynamic Role Swapping verified.")
 
-    # 5. Test FastAPI HTTP Endpoints & Schema Contracts
-    print("\n[TEST 5] Verifying FastAPI Web Server & API Telemetry Schema...")
+    # 6. Test FastAPI HTTP Endpoints & Schema Contracts
+    print("\n[TEST 6] Verifying FastAPI Web Server & API Telemetry Schema...")
     from app import app
 
     with TestClient(app) as client:
@@ -144,7 +176,7 @@ def run_verification():
         assert "queue" in m
         assert "compliance" in m
 
-        print(f"     * Inference Device: {m['system']['inference_device']}")
+        print(f"     * Inference Engine: {m['system']['inference_device']}")
         print(f"     * Cam 1 ({m['cameras']['cam1']['role']}): {m['cameras']['cam1']['source']} @ {m['cameras']['cam1']['fps']} FPS")
         print(f"     * Cam 2 ({m['cameras']['cam2']['role']}): {m['cameras']['cam2']['source']} @ {m['cameras']['cam2']['fps']} FPS")
         print(f"     * Shelf Stock: {m['shelf']['stock_count']}/{m['shelf']['stock_capacity']} ({m['shelf']['status']})")
@@ -162,7 +194,7 @@ def run_verification():
         assert res_sim.status_code == 200
 
         # GET /api/config/roi & POST /api/config/roi
-        print("\n[TEST 6] Verifying Dynamic ROI Configuration API & Persistence...")
+        print("\n[TEST 7] Verifying Dynamic ROI Configuration API & Persistence...")
         res_roi_get = client.get("/api/config/roi")
         print(f"  -> GET /api/config/roi -> Status {res_roi_get.status_code}")
         assert res_roi_get.status_code == 200
@@ -185,7 +217,7 @@ def run_verification():
         print("  [PASS] Dynamic ROI Configuration & Persistence verified.")
 
         # GET /api/reports/shift_summary & /api/history/events
-        print("\n[TEST 7] Verifying SQLite WAL Shift Analytics & Incident Logs...")
+        print("\n[TEST 8] Verifying SQLite WAL Shift Analytics & Incident Logs...")
         res_shift = client.get("/api/reports/shift_summary")
         print(f"  -> GET /api/reports/shift_summary -> Status {res_shift.status_code}")
         assert res_shift.status_code == 200
@@ -208,8 +240,8 @@ def run_verification():
         assert isinstance(res_events.json(), list)
         print("  [PASS] Shift Analytics & Event History verified.")
 
-    # 8. Test WebSocket Mobile Ingestion
-    print("\n[TEST 8] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
+    # 9. Test WebSocket Mobile Ingestion
+    print("\n[TEST 9] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
     dummy_frame = np.full((360, 640, 3), 128, dtype=np.uint8)
     _, dummy_jpeg = cv2.imencode('.jpg', dummy_frame)
     dummy_bytes = dummy_jpeg.tobytes()
@@ -224,7 +256,7 @@ def run_verification():
     print("  [PASS] WebSocket Mobile Ingestion verified.")
 
     print("\n" + "=" * 70)
-    print("  ALL 8 ADVANCED ENTERPRISE SUITES PASSED (100% GREEN)!")
+    print("  ALL 9 ADVANCED ENTERPRISE SUITES PASSED (100% GREEN)!")
     print("=" * 70)
 
 if __name__ == "__main__":

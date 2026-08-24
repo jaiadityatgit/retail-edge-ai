@@ -3,11 +3,13 @@ EdgeRetail AI // RetailSense OS (SIH26179)
 Dual-Camera Multi-Stream Edge Vision Intelligence & Autonomous Store Operations Platform
 Target Hardware: Qualcomm® QCS6490 / RB3 Gen 2, Raspberry Pi 5 & NVIDIA Edge Gateways
 Supports: 
+- Strict Supermarket Object Whitelisting (16 FMCG categories + Shopper)
+- Role-Based Compute Decoupling (Queue scans Person only; Shelf scans Retail Goods)
+- Integrated GPU (DirectML / iGPU) & Multi-Threaded Hardware Acceleration
+- Stock Delta & Transactional Low-Stock Warning Threshold State Machine
 - Primary Webcam (V4L2) + Mobile Phone WebSocket Ingest
-- GPU CUDA FP16 & Decoupled 15Hz/30FPS Hardware Inference Decimation
 - Local SQLite Event & Shift Persistence (WAL Mode)
 - Interactive Drag-and-Drop ROI Calibrator (config.json)
-- Physical Camera Auto-Reconnect Watchdog Daemon
 """
 
 import os
@@ -48,13 +50,60 @@ except ImportError:
 
 
 # ==============================================================================
-# 1. HARDWARE ACCELERATION & DEVICE PROFILER
+# 1. SUPERMARKET WHITELIST & CATEGORY MAPPINGS
 # ==============================================================================
 
-DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-USE_HALF = (DEVICE != 'cpu')  # FP16 half-precision on GPU for 3x throughput
+SUPERMARKET_RETAIL_CLASSES = {
+    39: "Beverage Bottle",       # bottle
+    40: "Soft Drink / Can",      # wine glass / can
+    41: "Beverage Cup",          # cup
+    45: "Snack Container",       # bowl
+    46: "Fresh Produce",         # banana
+    47: "Fresh Produce",         # apple
+    48: "Packaged Food",         # sandwich
+    49: "Fresh Produce",         # orange
+    50: "Grocery Item",          # broccoli
+    51: "Grocery Item",          # carrot
+    52: "Packaged Food",         # hot dog
+    53: "Packaged Food",         # pizza
+    54: "Snack / Confection",    # donut
+    55: "Packaged Dessert",      # cake
+    67: "Personal Device",       # cell phone
+    73: "Packaged Goods / Box",  # book
+}
 
-print(f"[Hardware Engine] Initialized on device: {DEVICE} (FP16 Half-Precision: {USE_HALF})")
+# Whitelisted Class IDs
+SHELF_TARGET_CLASS_IDS = [0] + list(SUPERMARKET_RETAIL_CLASSES.keys())  # Shopper + FMCG Retail Goods
+QUEUE_TARGET_CLASS_IDS = [0]  # Shopper (Person ONLY)
+
+
+# ==============================================================================
+# 2. HARDWARE ACCELERATION & COMPUTE DEVICE PROFILER
+# ==============================================================================
+
+def detect_best_compute_device() -> Tuple[str, bool, str]:
+    """Detects best compute acceleration: CUDA -> DirectML (iGPU) -> Optimized Multi-Core CPU."""
+    # 1. Dedicated NVIDIA CUDA GPU
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        return 'cuda:0', True, f"NVIDIA GPU ({gpu_name})"
+
+    # 2. DirectML for Intel Iris Xe / AMD Radeon Integrated GPU
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            return str(torch_directml.device()), False, "Integrated GPU (DirectML Accelerated)"
+    except ImportError:
+        pass
+
+    # 3. Optimized Multi-Core CPU
+    num_threads = min(4, psutil.cpu_count(logical=False) or 4)
+    torch.set_num_threads(num_threads)
+    return 'cpu', False, f"Optimized CPU ({platform.machine()} Multi-Threaded)"
+
+
+DEVICE, USE_HALF, DEVICE_NAME = detect_best_compute_device()
+print(f"[Hardware Engine] Initialized compute engine: {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
 
 
 def get_local_ip() -> str:
@@ -177,33 +226,15 @@ class HardwareProfiler:
         return round(min(max(base_temp, 42.0), 78.0), 1)
 
     @classmethod
-    def get_telemetry(cls, edge_fps: float = 28.5, inference_latency_ms: float = 18.2) -> Dict[str, Any]:
-        """Backward compatibility helper for get_system_telemetry."""
-        t = cls.get_system_telemetry(edge_fps, edge_fps, inference_latency_ms)
-        return {
-            "platform": t["silicon_target"],
-            "soc_temp_c": t["soc_temp_c"],
-            "cpu_load_pct": t["cpu_load_pct"],
-            "ram_used_mb": t["ram_used_mb"],
-            "ram_total_mb": t["ram_total_mb"],
-            "ram_pct": t["ram_pct"],
-            "edge_fps": t["edge_fps_cam1"],
-            "inference_latency_ms": t["inference_latency_ms"],
-            "throttled": t["soc_temp_c"] > 75.0,
-        }
-
-    @classmethod
     def get_system_telemetry(cls, fps_cam1: float, fps_cam2: float, latency_ms: float) -> Dict[str, Any]:
         cpu_pct = round(psutil.cpu_percent(interval=None), 1)
         mem = psutil.virtual_memory()
         soc_temp = cls.get_soc_temperature()
         is_rpi = cls.is_raspberry_pi()
 
-        gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None (CPU Execution)"
-        device_str = f"{DEVICE.upper()} - {gpu_name}" if torch.cuda.is_available() else f"CPU ({'ARM64 Cortex-A76' if is_rpi else platform.machine()})"
-
         return {
-            "inference_device": device_str,
+            "inference_device": DEVICE_NAME,
+            "device_backend": str(DEVICE),
             "gpu_available": torch.cuda.is_available(),
             "fp16_acceleration": USE_HALF,
             "soc_temp_c": soc_temp,
@@ -221,7 +252,7 @@ class HardwareProfiler:
 
 
 # ==============================================================================
-# 2. LOCAL SQLITE DATABASE (WAL MODE) & EVENT PERSISTENCE
+# 3. LOCAL SQLITE DATABASE (WAL MODE) & EVENT PERSISTENCE
 # ==============================================================================
 
 class RetailDatabase:
@@ -325,7 +356,7 @@ class RetailDatabase:
 
 
 # ==============================================================================
-# 3. DYNAMIC ROI CONFIGURATION (config.json)
+# 4. DYNAMIC ROI CONFIGURATION (config.json)
 # ==============================================================================
 
 CONFIG_FILE = Path(__file__).parent / "config.json"
@@ -354,7 +385,7 @@ def save_config(cfg: Dict[str, Any]):
 
 
 # ==============================================================================
-# 4. SYNTHETIC GROUND TRUTH GENERATORS
+# 5. SYNTHETIC GROUND TRUTH GENERATORS
 # ==============================================================================
 
 class SyntheticShelfGenerator:
@@ -417,18 +448,18 @@ class SyntheticShelfGenerator:
 
         detections = []
         item_coords = [
-            (sx1 + 35, tier_y - 45, 24, 42, "bottle", (0, 165, 255)),
-            (sx1 + 85, tier_y - 45, 24, 42, "bottle", (0, 200, 200)),
-            (sx1 + 135, tier_y - 40, 26, 37, "cup", (50, 220, 100)),
-            (sx1 + 185, tier_y - 40, 26, 37, "can", (220, 100, 50)),
-            (sx1 + 235, tier_y - 48, 28, 45, "book", (180, 100, 220)),
+            (sx1 + 35, tier_y - 45, 24, 42, "Beverage Bottle", 39, (0, 165, 255)),
+            (sx1 + 85, tier_y - 45, 24, 42, "Beverage Bottle", 39, (0, 200, 200)),
+            (sx1 + 135, tier_y - 40, 26, 37, "Beverage Cup", 41, (50, 220, 100)),
+            (sx1 + 185, tier_y - 40, 26, 37, "Soft Drink / Can", 40, (220, 100, 50)),
+            (sx1 + 235, tier_y - 48, 28, 45, "Packaged Goods / Box", 73, (180, 100, 220)),
         ]
 
-        for (ix, iy, iw, ih, label, col) in item_coords[:stock_count]:
+        for (ix, iy, iw, ih, label, cid, col) in item_coords[:stock_count]:
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), col, -1)
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), (255, 255, 255), 1)
             detections.append({
-                "class_id": 39 if label == "bottle" else 41 if label == "cup" else 73,
+                "class_id": cid,
                 "class_name": label,
                 "confidence": 0.92,
                 "box": [ix, iy, ix + iw, iy + ih],
@@ -443,7 +474,7 @@ class SyntheticShelfGenerator:
             cv2.rectangle(frame, (px + 10, py + 30), (px + pw - 10, py + ph - 20), (50, 180, 240), -1)
             detections.append({
                 "class_id": 0,
-                "class_name": "person",
+                "class_name": "Shopper",
                 "confidence": 0.94,
                 "box": [px, py, px + pw, py + ph],
                 "centroid": [px + pw / 2.0, py + ph * 0.85]
@@ -511,7 +542,7 @@ class SyntheticQueueGenerator:
             cv2.rectangle(frame, (qx_sway + 8, qy + 28), (qx_sway + qw - 8, qy + qh - 20), col, -1)
             detections.append({
                 "class_id": 0,
-                "class_name": "person",
+                "class_name": "Shopper",
                 "confidence": 0.93,
                 "box": [qx_sway, qy, qx_sway + qw, qy + qh],
                 "centroid": [qx_sway + qw / 2.0, qy + qh * 0.85]
@@ -521,14 +552,14 @@ class SyntheticQueueGenerator:
 
 
 # ==============================================================================
-# 5. DUAL-STREAM VISION & RE-IDENTIFICATION ENGINE
+# 6. DUAL-STREAM VISION & RE-IDENTIFICATION ENGINE
 # ==============================================================================
 
 class DualCameraVisionEngine:
     """
-    Manages two concurrent video streams, runs YOLO inference with hardware decimation,
-    handles auto-reconnect for USB cameras, executes CSIM occlusion logic, and logs
-    operational incidents to SQLite WAL database.
+    Manages two concurrent video streams, runs role-based YOLO inference with hardware decimation,
+    handles auto-reconnect for USB cameras, executes CSIM occlusion logic, tracks stock deltas,
+    and logs operational incidents to SQLite WAL database.
     """
 
     def __init__(self, model_path: str = "yolov8n.pt", imgsz: int = 320):
@@ -577,13 +608,19 @@ class DualCameraVisionEngine:
         self.last_mobile_frame_time = 0.0
         self.lock2 = threading.Lock()
 
-        # Retail State Machines
+        # Retail State Machines & Delta Inventory
         self.shelf_stock_count = 5
         self.shelf_capacity = 5
-        self.shelf_status = "OPTIMAL"
+        self.shelf_percentage = 100
+        self.shelf_status = "OPTIMAL"  # OPTIMAL, CUSTOMER_INTERACTING, LOW_STOCK_WARNING, PENDING_OOS, OUT_OF_STOCK_ALERT
         self.shelf_alert_active = False
         self.shelf_is_occluded = False
         self.empty_shelf_start_time: Optional[float] = None
+
+        # Stock Transaction Log
+        self.total_items_taken = 0
+        self.total_items_restocked = 0
+        self.last_transaction = "🟢 Initial Stock Synchronized (5/5)"
 
         self.queue_customer_count = 0
         self.queue_status = "NORMAL"
@@ -627,7 +664,7 @@ class DualCameraVisionEngine:
             return
 
         try:
-            print(f"[DualEngine] Loading YOLOv8 model: {self.model_path} on {DEVICE}...")
+            print(f"[DualEngine] Loading YOLOv8 model: {self.model_path} on {DEVICE_NAME}...")
             self.model = YOLO(self.model_path)
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
             self.model(dummy, imgsz=self.imgsz, verbose=False, device=DEVICE)
@@ -674,36 +711,74 @@ class DualCameraVisionEngine:
         except Exception as e:
             pass
 
-    def _run_inference(self, frame: np.ndarray) -> List[Dict[str, Any]]:
+    def _run_inference(self, frame: np.ndarray, role: str) -> List[Dict[str, Any]]:
+        """
+        Zero-Waste Role-Based Inference Engine:
+        - QUEUE Monitor: filters for Person (class 0) only.
+        - SHELF Monitor: filters for Person + Supermarket FMCG Whitelist classes only.
+        """
         detections = []
-        if self.model_loaded and self.model is not None:
-            try:
-                results = self.model(frame, imgsz=self.imgsz, verbose=False, conf=0.35, device=DEVICE)
-                for r in results:
-                    for box in r.boxes:
-                        cls_id = int(box.cls[0].item())
-                        cls_name = r.names.get(cls_id, str(cls_id))
-                        conf = float(box.conf[0].item())
-                        xyxy = box.xyxy[0].tolist()
-                        detections.append({
-                            "class_id": cls_id,
-                            "class_name": cls_name,
-                            "confidence": conf,
-                            "box": xyxy,
-                            "centroid": [(xyxy[0] + xyxy[2]) / 2.0, (xyxy[1] + xyxy[3]) / 2.0]
-                        })
-            except Exception as e:
-                pass
+        if not (self.model_loaded and self.model is not None):
+            return detections
+
+        target_classes = QUEUE_TARGET_CLASS_IDS if role == "QUEUE" else SHELF_TARGET_CLASS_IDS
+
+        try:
+            results = self.model(
+                frame,
+                imgsz=self.imgsz,
+                verbose=False,
+                conf=0.32,
+                classes=target_classes,
+                device=DEVICE
+            )
+            for r in results:
+                for box in r.boxes:
+                    cls_id = int(box.cls[0].item())
+                    conf = float(box.conf[0].item())
+                    xyxy = box.xyxy[0].tolist()
+
+                    if cls_id == 0:
+                        clean_name = "Shopper"
+                    else:
+                        clean_name = SUPERMARKET_RETAIL_CLASSES.get(cls_id, "Retail Product")
+
+                    detections.append({
+                        "class_id": cls_id,
+                        "class_name": clean_name,
+                        "confidence": conf,
+                        "box": xyxy,
+                        "centroid": [(xyxy[0] + xyxy[2]) / 2.0, (xyxy[1] + xyxy[3]) / 2.0]
+                    })
+        except Exception as e:
+            pass
+
         return detections
 
     def _process_shelf_role(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
-        retail_classes = {"bottle", "cup", "can", "bowl", "cell phone", "book", "product"}
-        items = [d for d in detections if d.get("class_name") in retail_classes or d.get("class_id") in [39, 41, 45, 67, 73]]
-        persons = [d for d in detections if d.get("class_name") == "person"]
+        # Exclude shopper class for stock inventory counting
+        retail_items = [d for d in detections if d.get("class_id") != 0]
+        shoppers = [d for d in detections if d.get("class_id") == 0]
 
         now = time.time()
         with self.state_lock:
-            self.shelf_stock_count = len(items)
+            previous_stock = self.shelf_stock_count
+            current_stock = len(retail_items)
+
+            # Detect item deltas
+            if current_stock < previous_stock:
+                delta_taken = previous_stock - current_stock
+                self.total_items_taken += delta_taken
+                self.last_transaction = f"🔴 -{delta_taken} item(s) picked by shopper"
+                self.db.log_event("ITEM_PICKED", "SHELF", f"Shopper picked {delta_taken} item(s). Remaining: {current_stock}/{self.shelf_capacity}.", "INFO")
+            elif current_stock > previous_stock:
+                delta_added = current_stock - previous_stock
+                self.total_items_restocked += delta_added
+                self.last_transaction = f"🟢 +{delta_added} item(s) restocked"
+                self.db.log_event("ITEM_RESTOCKED", "SHELF", f"Inventory replenished by +{delta_added}. Count: {current_stock}/{self.shelf_capacity}.", "INFO")
+
+            self.shelf_stock_count = current_stock
+            self.shelf_percentage = int((self.shelf_stock_count / max(1, self.shelf_capacity)) * 100)
 
             # Check occlusion with normalized shelf ROI
             rx1 = int(self.shelf_roi["x1"] * frame_w)
@@ -713,7 +788,7 @@ class DualCameraVisionEngine:
             roi_area = max(1, (rx2 - rx1) * (ry2 - ry1))
 
             occluded = False
-            for p in persons:
+            for p in shoppers:
                 bx1, by1, bx2, by2 = p["box"]
                 ix1 = max(rx1, bx1)
                 iy1 = max(ry1, by1)
@@ -727,38 +802,49 @@ class DualCameraVisionEngine:
 
             self.shelf_is_occluded = occluded
 
+            # State Transitions & Thresholds:
+            # 1. Customer Interaction (Alarms Paused)
             if self.shelf_is_occluded:
                 if self.shelf_status != "CUSTOMER_INTERACTING":
-                    self.db.log_event("CUSTOMER_BROWSING", "SHELF", "Customer interacting at shelf zone.", "INFO")
+                    self.db.log_event("CUSTOMER_BROWSING", "SHELF", "Shopper interacting at shelf zone.", "INFO")
                 self.shelf_status = "CUSTOMER_INTERACTING"
                 self.empty_shelf_start_time = None
                 self.shelf_alert_active = False
-            else:
-                if self.shelf_stock_count == 0:
-                    if self.empty_shelf_start_time is None:
-                        self.empty_shelf_start_time = now
-                    if (now - self.empty_shelf_start_time) >= 2.0:
-                        if self.shelf_status != "OUT_OF_STOCK_ALERT":
-                            self.db.log_event("OUT_OF_STOCK_ALERT", "SHELF", "Shelf Tier-1 depleted (0 items).", "CRITICAL")
-                        self.shelf_status = "OUT_OF_STOCK_ALERT"
-                        self.shelf_alert_active = True
-                    else:
-                        self.shelf_status = "PENDING_OOS"
-                        self.shelf_alert_active = False
+
+            # 2. Critical Out of Stock (0 Items for >= 2.0s)
+            elif self.shelf_stock_count == 0:
+                if self.empty_shelf_start_time is None:
+                    self.empty_shelf_start_time = now
+                if (now - self.empty_shelf_start_time) >= 2.0:
+                    if self.shelf_status != "OUT_OF_STOCK_ALERT":
+                        self.db.log_event("OUT_OF_STOCK_ALERT", "SHELF", "Shelf Tier-1 depleted (0 items).", "CRITICAL")
+                    self.shelf_status = "OUT_OF_STOCK_ALERT"
+                    self.shelf_alert_active = True
                 else:
-                    self.shelf_status = "OPTIMAL"
-                    self.empty_shelf_start_time = None
+                    self.shelf_status = "PENDING_OOS"
                     self.shelf_alert_active = False
 
+            # 3. Low Stock Warning Threshold (<= 20% or <= 1 item remaining)
+            elif self.shelf_stock_count <= 1:
+                self.shelf_status = "LOW_STOCK_WARNING"
+                self.empty_shelf_start_time = None
+                self.shelf_alert_active = False
+
+            # 4. Optimal Stock Level (> 1 item)
+            else:
+                self.shelf_status = "OPTIMAL"
+                self.empty_shelf_start_time = None
+                self.shelf_alert_active = False
+
     def _process_queue_role(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
-        persons = [d for d in detections if d.get("class_name") == "person"]
+        shoppers = [d for d in detections if d.get("class_id") == 0]
         with self.state_lock:
-            self.queue_customer_count = len(persons)
+            self.queue_customer_count = len(shoppers)
             self.queue_estimated_wait_min = round(self.queue_customer_count * 1.5, 1)
 
             if self.queue_customer_count >= 2:
                 if self.queue_status != "CONGESTION_WARNING":
-                    self.db.log_event("CASHIER_DISPATCH_ALERT", "QUEUE", f"Queue count >= {self.queue_customer_count} persons. Est. wait: {self.queue_estimated_wait_min}m.", "WARNING")
+                    self.db.log_event("CASHIER_DISPATCH_ALERT", "QUEUE", f"Queue count >= {self.queue_customer_count} shoppers. Est. wait: {self.queue_estimated_wait_min}m.", "WARNING")
                 self.queue_status = "CONGESTION_WARNING"
                 self.queue_congestion_alert = True
             else:
@@ -784,9 +870,9 @@ class DualCameraVisionEngine:
         # Draw detections
         for det in detections:
             bx1, by1, bx2, by2 = [int(v) for v in det["box"]]
-            cname = det.get("class_name", "obj")
+            cname = det.get("class_name", "Object")
             conf = det.get("confidence", 0.0)
-            col = (0, 220, 255) if cname == "person" else (255, 180, 50)
+            col = (0, 220, 255) if cname == "Shopper" else (255, 180, 50)
 
             cv2.rectangle(out, (bx1, by1), (bx2, by2), col, 2)
             label = f"{cname} {conf:.2f}"
@@ -804,10 +890,10 @@ class DualCameraVisionEngine:
 
         with self.state_lock:
             if role == "SHELF":
-                status_str = f"Stock: {self.shelf_stock_count}/5 | Status: {self.shelf_status}"
-                col = (0, 0, 255) if self.shelf_alert_active else (0, 200, 255) if self.shelf_is_occluded else (0, 255, 150)
+                status_str = f"Stock: {self.shelf_stock_count}/5 ({self.shelf_percentage}%) | Status: {self.shelf_status}"
+                col = (0, 0, 255) if self.shelf_alert_active else (0, 165, 255) if self.shelf_status == "LOW_STOCK_WARNING" else (0, 200, 255) if self.shelf_is_occluded else (0, 255, 150)
             else:
-                status_str = f"Queue: {self.queue_customer_count} ppl | Wait: {self.queue_estimated_wait_min}m | Status: {self.queue_status}"
+                status_str = f"Queue: {self.queue_customer_count} shoppers | Wait: {self.queue_estimated_wait_min}m | Status: {self.queue_status}"
                 col = (0, 0, 255) if self.queue_congestion_alert else (0, 255, 150)
 
         cv2.putText(out, status_str, (8, h - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.34, col, 1)
@@ -848,7 +934,7 @@ class DualCameraVisionEngine:
                 if ret and r_frame is not None:
                     frame = r_frame
                     if self.cam1_counter % infer_stride == 0 or len(self.cam1_detections) == 0:
-                        self.cam1_detections = self._run_inference(frame)
+                        self.cam1_detections = self._run_inference(frame, self.cam1_role)
                     self.cam1_counter += 1
                     detections = self.cam1_detections
                 else:
@@ -903,7 +989,7 @@ class DualCameraVisionEngine:
                 with self.lock2:
                     frame = self.cam2_frame.copy()
                 if self.cam2_counter % infer_stride == 0 or len(self.cam2_detections) == 0:
-                    self.cam2_detections = self._run_inference(frame)
+                    self.cam2_detections = self._run_inference(frame, self.cam2_role)
                 self.cam2_counter += 1
                 detections = self.cam2_detections
             else:
@@ -955,10 +1041,13 @@ class DualCameraVisionEngine:
             shelf_data = {
                 "stock_count": self.shelf_stock_count,
                 "stock_capacity": self.shelf_capacity,
-                "stock_percentage": round((self.shelf_stock_count / self.shelf_capacity) * 100, 1),
+                "stock_percentage": self.shelf_percentage,
                 "status": self.shelf_status,
                 "is_occluded": self.shelf_is_occluded,
-                "alert_active": self.shelf_alert_active
+                "alert_active": self.shelf_alert_active,
+                "total_items_taken": self.total_items_taken,
+                "total_items_restocked": self.total_items_restocked,
+                "last_transaction": self.last_transaction
             }
             queue_data = {
                 "customer_count": self.queue_customer_count,
@@ -1008,7 +1097,7 @@ class DualCameraVisionEngine:
 
 
 # ==============================================================================
-# 6. FASTAPI WEB SERVER & ROUTING
+# 7. FASTAPI WEB SERVER & ROUTING
 # ==============================================================================
 
 engine = DualCameraVisionEngine()
@@ -1021,8 +1110,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RetailSense OS // Edge Intelligence Platform (SIH26179)",
-    description="Dual-Stream Edge Vision Analytics Platform with SQLite WAL Shift Analytics & Interactive ROI Calibrator",
-    version="3.5.0",
+    description="Dual-Stream Edge Vision Analytics Platform with Supermarket Whitelist Filtering, SQLite WAL Shift Analytics & Interactive ROI Calibrator",
+    version="3.6.0",
     lifespan=lifespan
 )
 
@@ -1154,7 +1243,8 @@ async def health_check():
     return {
         "status": "healthy",
         "dual_engine_running": engine.running,
-        "inference_device": DEVICE,
+        "inference_device": DEVICE_NAME,
+        "device_backend": str(DEVICE),
         "fp16": USE_HALF,
         "cam1_role": engine.cam1_role,
         "cam2_role": engine.cam2_role,
@@ -1197,7 +1287,6 @@ async def update_roi_config(req: ROIConfigRequest):
     elif req.roi_type.upper() == "QUEUE":
         engine.queue_roi = roi_dict
 
-    # Save to disk
     save_config({
         "shelf_roi": engine.shelf_roi,
         "queue_roi": engine.queue_roi
@@ -1336,7 +1425,7 @@ if __name__ == "__main__":
     print(f"  * Dashboard Console:     {proto}://{local_ip}:{port}/")
     print(f"  * Mobile Phone Ingest:   {proto}://{local_ip}:{port}/mobile_cam")
     print(f"  * Pitch Deck:            {proto}://{local_ip}:{port}/presentation")
-    print(f"  * Device:                {DEVICE} (FP16: {USE_HALF})")
+    print(f"  * Device:                {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
     if not use_ssl:
         print("\n  💡 TIP: For direct mobile Chrome camera access without flag configuration,")
         print(f"     launch with SSL:  .\\.venv\\Scripts\\python.exe app.py --ssl")
