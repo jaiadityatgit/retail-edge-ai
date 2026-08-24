@@ -1,7 +1,7 @@
 """
 EdgeRetail AI // SIH26179 - On-Device Retail Intelligence Platform
 Target Hardware: Raspberry Pi 5 (ARM64 Quad-Core Cortex-A76) & Edge Appliances
-100% Offline, DPDP 2023 Compliant, Multi-Threaded Vision Pipeline + FastAPI Dashboard
+100% Offline, DPDP 2023 Compliant, Multi-Threaded Vision Pipeline + Spatial Tracking + FastAPI Dashboard
 """
 
 import os
@@ -112,7 +112,66 @@ class HardwareProfiler:
 
 
 # ==============================================================================
-# 2. SYNTHETIC VISUAL TEST GENERATOR (AUTOMATIC CAMERA FALLBACK)
+# 2. SPATIAL TRACKED ENTITY & RE-ID ENGINE
+# ==============================================================================
+
+class TrackedEntity:
+    """Maintains persistent trajectory, dwell duration, and kinematics for an object."""
+
+    def __init__(self, track_id: int, class_name: str, box: List[float], centroid: Tuple[float, float], confidence: float):
+        self.track_id = track_id
+        self.class_name = class_name
+        self.box = [float(v) for v in box]
+        self.centroid = (float(centroid[0]), float(centroid[1]))
+        self.confidence = float(confidence)
+        self.first_seen = time.time()
+        self.last_seen = time.time()
+        self.history: List[Tuple[int, int]] = [(int(centroid[0]), int(centroid[1]))]
+        self.zone = "TRANSIT"
+        self.velocity_mps = 0.0
+        self.occluding_shelf = False
+
+    def update(self, box: List[float], centroid: Tuple[float, float], conf: float, zone: str, occluding: bool):
+        now = time.time()
+        dt = max(0.001, now - self.last_seen)
+        old_cx, old_cy = self.centroid
+        new_cx, new_cy = float(centroid[0]), float(centroid[1])
+        
+        dist_pixels = math.hypot(new_cx - old_cx, new_cy - old_cy)
+        # Approximate 120 pixels = 1 meter on testbed
+        self.velocity_mps = round((dist_pixels / 120.0) / dt, 2)
+
+        self.box = [float(v) for v in box]
+        self.centroid = (new_cx, new_cy)
+        self.confidence = float(conf)
+        self.last_seen = now
+        self.zone = zone
+        self.occluding_shelf = occluding
+        
+        self.history.append((int(new_cx), int(new_cy)))
+        if len(self.history) > 30:
+            self.history.pop(0)
+
+    @property
+    def dwell_time_sec(self) -> float:
+        return round(time.time() - self.first_seen, 1)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "track_id": self.track_id,
+            "class_name": self.class_name,
+            "confidence": round(self.confidence, 2),
+            "box": [round(v, 1) for v in self.box],
+            "centroid": [round(c, 1) for c in self.centroid],
+            "zone": self.zone,
+            "dwell_time_sec": self.dwell_time_sec,
+            "velocity_mps": self.velocity_mps,
+            "occluding_shelf": self.occluding_shelf
+        }
+
+
+# ==============================================================================
+# 3. SYNTHETIC VISUAL TEST GENERATOR (AUTOMATIC CAMERA FALLBACK)
 # ==============================================================================
 
 class SyntheticRetailGenerator:
@@ -149,13 +208,13 @@ class SyntheticRetailGenerator:
         w, h = self.width, self.height
 
         # Create dark retail environment canvas
-        frame = np.full((h, w, 3), 26, dtype=np.uint8)
+        frame = np.full((h, w, 3), 22, dtype=np.uint8)
 
         # 1. Floor tiles & store background
         for y in range(int(h * 0.15), h, 30):
-            cv2.line(frame, (0, y), (w, y), (38, 38, 42), 1)
+            cv2.line(frame, (0, y), (w, y), (34, 36, 44), 1)
         for x in range(0, w, 40):
-            cv2.line(frame, (x, int(h * 0.15)), (x, h), (34, 34, 38), 1)
+            cv2.line(frame, (x, int(h * 0.15)), (x, h), (30, 32, 40), 1)
 
         # 2. Zone Base Layouts
         # Shelf unit on left (0 to 40% X)
@@ -163,38 +222,31 @@ class SyntheticRetailGenerator:
         shelf_x2, shelf_y2 = int(w * 0.36), int(h * 0.85)
 
         # Draw shelf frame
-        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y2), (48, 52, 60), -1)
-        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y2), (80, 88, 100), 2)
+        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y2), (36, 40, 50), -1)
+        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y2), (70, 78, 92), 2)
 
         # Shelf tiers (Tier 1 & Tier 2)
         tier1_y = int(h * 0.48)
         tier2_y = int(h * 0.76)
-        cv2.line(frame, (shelf_x1, tier1_y), (shelf_x2, tier1_y), (120, 130, 150), 3)
-        cv2.line(frame, (shelf_x1, tier2_y), (shelf_x2, tier2_y), (120, 130, 150), 3)
+        cv2.line(frame, (shelf_x1, tier1_y), (shelf_x2, tier1_y), (100, 112, 130), 3)
+        cv2.line(frame, (shelf_x1, tier2_y), (shelf_x2, tier2_y), (100, 112, 130), 3)
 
         # Shelf header strip
-        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y1 + 18), (35, 40, 50), -1)
+        cv2.rectangle(frame, (shelf_x1, shelf_y1), (shelf_x2, shelf_y1 + 18), (28, 32, 42), -1)
         cv2.putText(frame, "SHELF TIER-1 / FMCG BEVERAGES", (shelf_x1 + 6, shelf_y1 + 13),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.32, (180, 200, 220), 1)
 
         # Checkout counter on right (60% to 100% X)
         q_x1, q_y1 = int(w * 0.64), int(h * 0.25)
         q_x2, q_y2 = int(w * 0.95), int(h * 0.85)
-        cv2.rectangle(frame, (q_x1 + 80, q_y1 + 40), (q_x2, q_y2 - 20), (45, 50, 58), -1)
-        cv2.rectangle(frame, (q_x1 + 80, q_y1 + 40), (q_x2, q_y2 - 20), (70, 78, 90), 2)
+        cv2.rectangle(frame, (q_x1 + 80, q_y1 + 40), (q_x2, q_y2 - 20), (38, 42, 52), -1)
+        cv2.rectangle(frame, (q_x1 + 80, q_y1 + 40), (q_x2, q_y2 - 20), (65, 72, 85), 2)
         cv2.putText(frame, "REGISTER 1", (q_x1 + 90, q_y1 + 65),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 220, 255), 1)
 
         # 3. Determine Scenario Timings & Object States
         cycle_len = 30.0  # 30 second repeating test cycle
         cycle_t = t % cycle_len
-
-        # Defaults for AUTO_CYCLE:
-        # 0s - 7s: Stock = 5 items, Shopper browsing aisle
-        # 7s - 14s: Shopper occludes shelf, grabs items
-        # 14s - 22s: Shopper leaves shelf, stock = 0 (Debounce -> OOS alert), shopper joins queue
-        # 22s - 27s: 2nd shopper enters queue (Queue congestion >= 2)
-        # 27s - 30s: Shelf restocked to 5 items, queue clears -> reset to OPTIMAL
 
         detections = []
 
@@ -250,12 +302,10 @@ class SyntheticRetailGenerator:
 
         active_items = shelf_items_coords[:stock_count]
         for (ix, iy, iw, ih, label, col) in active_items:
-            # Draw product bottle / can
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), col, -1)
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), (255, 255, 255), 1)
             cv2.circle(frame, (ix + iw // 2, iy + 6), 4, (240, 240, 240), -1)
 
-            # Ground truth detection for synthetic pipeline
             detections.append({
                 "class_id": 39 if label == "bottle" else 41 if label == "cup" else 73,
                 "class_name": label,
@@ -264,54 +314,44 @@ class SyntheticRetailGenerator:
                 "centroid": [ix + iw / 2.0, iy + ih / 2.0]
             })
 
-        # If stock is 0, draw empty shelf base with void indicator
         if stock_count == 0:
             cv2.putText(frame, "[SHELF VOID - DEPLETED]", (shelf_x1 + 10, tier1_y - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.38, (80, 80, 220), 1)
 
-        # 5. Render Moving Shoppers (Person class)
-        # Helper to draw realistic person avatar
+        # 5. Render Moving Shoppers
         def draw_shopper(px: int, py: int, pw: int, ph: int, person_id: int, color=(0, 210, 255)):
-            # Head
             head_radius = int(pw * 0.28)
             head_center = (px + pw // 2, py + head_radius + 4)
             cv2.circle(frame, head_center, head_radius, (220, 180, 140), -1)
             cv2.circle(frame, head_center, head_radius, (255, 255, 255), 1)
 
-            # Torso / Body
             torso_top = head_center[1] + head_radius
             torso_bottom = py + int(ph * 0.72)
             cv2.rectangle(frame, (px + int(pw * 0.15), torso_top), (px + int(pw * 0.85), torso_bottom), color, -1)
             cv2.rectangle(frame, (px + int(pw * 0.15), torso_top), (px + int(pw * 0.85), torso_bottom), (255, 255, 255), 1)
 
-            # Legs
             cv2.line(frame, (px + int(pw * 0.3), torso_bottom), (px + int(pw * 0.3), py + ph), (40, 40, 50), 3)
             cv2.line(frame, (px + int(pw * 0.7), torso_bottom), (px + int(pw * 0.7), py + ph), (40, 40, 50), 3)
 
-            # Person detection payload
             detections.append({
                 "class_id": 0,
                 "class_name": "person",
                 "track_id": person_id,
                 "confidence": 0.91 + random.uniform(0.01, 0.06),
                 "box": [px, py, px + pw, py + ph],
-                "centroid": [px + pw / 2.0, py + ph * 0.85]  # Footprint centroid
+                "centroid": [px + pw / 2.0, py + ph * 0.85]
             })
 
-        # Shopper 1 (Aisle / Shelf Interacting / Moving)
         if shopper_near_shelf:
-            # Positioned directly in front of shelf tier-1 (occluding)
             p1_x = int(w * 0.18 + math.sin(t * 1.5) * 8)
             p1_y = int(h * 0.30)
             draw_shopper(p1_x, p1_y, 48, 110, person_id=101, color=(50, 180, 240))
         elif cycle_t < 7.0 or self.simulation_mode == "RESTOCK_EMPTY":
-            # Walking down transit aisle (40% to 60% X)
             progress = (cycle_t / 7.0) if cycle_t < 7.0 else 0.5
             p1_x = int(w * 0.42 + progress * (w * 0.12))
             p1_y = int(h * 0.32 + math.cos(t * 2.0) * 6)
             draw_shopper(p1_x, p1_y, 44, 105, person_id=101, color=(70, 160, 230))
 
-        # Queue Shoppers (in Checkout Queue Zone: 60% to 100% X)
         queue_positions = [
             (int(w * 0.72), int(h * 0.34), 44, 105, 102, (240, 140, 60)),
             (int(w * 0.65), int(h * 0.36), 44, 105, 103, (160, 100, 240)),
@@ -320,7 +360,6 @@ class SyntheticRetailGenerator:
 
         for i in range(min(queue_shoppers, len(queue_positions))):
             qx, qy, qw, qh, pid, col = queue_positions[i]
-            # Subtle breathing/shifting motion
             qx_shift = int(qx + math.sin(t * 1.2 + i) * 3)
             draw_shopper(qx_shift, qy, qw, qh, person_id=pid, color=col)
 
@@ -328,7 +367,7 @@ class SyntheticRetailGenerator:
 
 
 # ==============================================================================
-# 3. SPATIAL ROIs & OCCLUSION-AWARE CSIM STATE MACHINE
+# 4. SPATIAL ROIs & OCCLUSION-AWARE CSIM STATE MACHINE
 # ==============================================================================
 
 class SpatialZones:
@@ -341,9 +380,10 @@ class SpatialZones:
 class RetailStateMachine:
     """
     Implements:
-    1. CSIM (Centroid-Shelf Interaction Matrix) Occlusion Handling.
-    2. Out-of-Stock Debounce Timer (2.0s continuous non-occluded empty detection).
-    3. Queue Congestion & Dwell Estimator (queue_count >= 2 -> CONGESTION_WARNING).
+    1. Spatial Tracking & Centroid History Engine.
+    2. CSIM (Centroid-Shelf Interaction Matrix) Occlusion Handling.
+    3. Out-of-Stock Debounce Timer (2.0s continuous non-occluded empty detection).
+    4. Queue Congestion & Dwell Estimator (queue_count >= 2 -> CONGESTION_WARNING).
     """
 
     def __init__(self, debounce_threshold_sec: float = 2.0):
@@ -363,13 +403,13 @@ class RetailStateMachine:
         self.queue_congestion_alert = False
         self.estimated_wait_min = 0.0
 
-        # Customer tracking & dwell memory
-        self.active_tracks: Dict[int, Dict[str, Any]] = {}
+        # Continuous tracking memory
+        self.active_tracks: Dict[int, TrackedEntity] = {}
+        self.next_track_id = 101
         self.lock = threading.Lock()
 
     @staticmethod
     def calculate_box_roi_overlap_pct(box: List[float], roi: Dict[str, float], frame_w: int, frame_h: int) -> float:
-        """Calculates overlap area ratio of person box relative to Shelf ROI."""
         bx1, by1, bx2, by2 = box
         rx1, ry1 = int(roi["x1"] * frame_w), int(roi["y1"] * frame_h)
         rx2, ry2 = int(roi["x2"] * frame_w), int(roi["y2"] * frame_h)
@@ -393,40 +433,89 @@ class RetailStateMachine:
         rx2, ry2 = roi["x2"] * frame_w, roi["y2"] * frame_h
         return rx1 <= px <= rx2 and ry1 <= py <= ry2
 
+    def determine_zone(self, centroid: Tuple[float, float], frame_w: int, frame_h: int) -> str:
+        if self.is_point_in_roi(centroid, SpatialZones.SHELF, frame_w, frame_h):
+            return "SHELF"
+        elif self.is_point_in_roi(centroid, SpatialZones.QUEUE, frame_w, frame_h):
+            return "QUEUE"
+        elif self.is_point_in_roi(centroid, SpatialZones.TRANSIT, frame_w, frame_h):
+            return "TRANSIT"
+        return "AISLE"
+
     def update(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
-        """Processes frame detections through the state machine."""
+        """Processes frame detections through tracking and state machine."""
         now = time.time()
         with self.lock:
-            # 1. Classify detections by class and spatial location
             retail_classes = {"bottle", "cup", "can", "bowl", "cell phone", "book", "product"}
             shelf_items = []
-            persons = []
+            current_persons = []
 
             for det in detections:
                 cname = det.get("class_name", "").lower()
                 centroid = det.get("centroid", [(det["box"][0] + det["box"][2]) / 2, (det["box"][1] + det["box"][3]) / 2])
 
                 if cname == "person":
-                    persons.append(det)
+                    current_persons.append(det)
                 elif cname in retail_classes or det.get("class_id") in [39, 41, 45, 67, 73]:
-                    # Check if item is inside Shelf ROI
                     if self.is_point_in_roi(centroid, SpatialZones.SHELF, frame_w, frame_h):
                         shelf_items.append(det)
 
             self.stock_count = len(shelf_items)
 
-            # 2. Centroid-Shelf Interaction Matrix (CSIM) Occlusion Check
-            occlusion_detected = False
-            for p in persons:
+            # 1. Update Spatial Tracker for Persons
+            matched_track_ids = set()
+            for p in current_persons:
                 box = p["box"]
                 centroid = p.get("centroid", [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2])
+                conf = p.get("confidence", 0.90)
+                assigned_id = p.get("track_id")
+
                 overlap_ratio = self.calculate_box_roi_overlap_pct(box, SpatialZones.SHELF, frame_w, frame_h)
                 centroid_in_shelf = self.is_point_in_roi(centroid, SpatialZones.SHELF, frame_w, frame_h)
+                is_occluding = (overlap_ratio > 0.10) or centroid_in_shelf
+                zone = self.determine_zone(centroid, frame_w, frame_h)
 
-                if overlap_ratio > 0.10 or centroid_in_shelf:
-                    occlusion_detected = True
-                    break
+                # Match to existing track
+                best_tid = None
+                if assigned_id and assigned_id in self.active_tracks:
+                    best_tid = assigned_id
+                else:
+                    min_dist = 100.0  # Max distance in pixels to match track
+                    for tid, entity in self.active_tracks.items():
+                        if tid in matched_track_ids:
+                            continue
+                        dist = math.hypot(centroid[0] - entity.centroid[0], centroid[1] - entity.centroid[1])
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_tid = tid
 
+                if best_tid is not None:
+                    self.active_tracks[best_tid].update(box, centroid, conf, zone, is_occluding)
+                    p["track_id"] = best_tid
+                    matched_track_ids.add(best_tid)
+                else:
+                    tid = assigned_id if assigned_id else self.next_track_id
+                    if not assigned_id:
+                        self.next_track_id += 1
+                    entity = TrackedEntity(tid, "person", box, centroid, conf)
+                    entity.zone = zone
+                    entity.occluding_shelf = is_occluding
+                    self.active_tracks[tid] = entity
+                    p["track_id"] = tid
+                    matched_track_ids.add(tid)
+
+            # Clean up stale tracks (not seen for > 1.0s)
+            stale_keys = [k for k, v in self.active_tracks.items() if (now - v.last_seen) > 1.0]
+            for k in stale_keys:
+                del self.active_tracks[k]
+
+            # Mark non-updated tracks as not actively occluding in this frame
+            for tid, entity in self.active_tracks.items():
+                if tid not in matched_track_ids:
+                    entity.occluding_shelf = False
+
+            # 2. Centroid-Shelf Interaction Matrix (CSIM) Occlusion Check
+            occlusion_detected = any(v.occluding_shelf and (now - v.last_seen < 0.25) for v in self.active_tracks.values())
             self.is_shelf_occluded = occlusion_detected
 
             # 3. Shelf State Machine & Restock Logic
@@ -453,12 +542,7 @@ class RetailStateMachine:
                     self.shelf_alert_active = False
 
             # 4. Queue Congestion & Dwell Time Calculation
-            queue_persons = []
-            for p in persons:
-                centroid = p.get("centroid", [(p["box"][0] + p["box"][2]) / 2, (p["box"][1] + p["box"][3]) / 2])
-                if self.is_point_in_roi(centroid, SpatialZones.QUEUE, frame_w, frame_h):
-                    queue_persons.append(p)
-
+            queue_persons = [v for v in self.active_tracks.values() if v.zone == "QUEUE" and (now - v.last_seen < 0.25)]
             self.queue_customer_count = len(queue_persons)
             self.estimated_wait_min = round(self.queue_customer_count * 1.5, 1)
 
@@ -471,13 +555,13 @@ class RetailStateMachine:
 
 
 # ==============================================================================
-# 4. THREAD-SAFE MULTI-TASK VISION PIPELINE
+# 5. THREAD-SAFE MULTI-TASK VISION PIPELINE
 # ==============================================================================
 
 class VisionEngine:
     """
     Dedicated background worker thread for camera ingestion, YOLOv8 inference,
-    HUD rendering, and atomic double-buffered JPEG streaming.
+    HUD rendering, spatial trajectory tracking, and double-buffered JPEG streaming.
     """
 
     def __init__(self, camera_index: int = 0, model_path: str = "yolov8n.pt", imgsz: int = 320):
@@ -487,29 +571,22 @@ class VisionEngine:
         self.running = False
         self.worker_thread: Optional[threading.Thread] = None
 
-        # Camera & synthetic generator
         self.cap: Optional[cv2.VideoCapture] = None
         self.use_synthetic = False
         self.synthetic_gen = SyntheticRetailGenerator(width=640, height=360)
 
-        # AI Model
         self.model = None
         self.model_loaded = False
 
-        # State Machine
         self.state_machine = RetailStateMachine(debounce_threshold_sec=2.0)
 
-        # Frame double-buffering & telemetry sync
         self.lock = threading.Lock()
         self.latest_frame: Optional[np.ndarray] = None
         self.latest_jpeg: Optional[bytes] = None
         self.edge_fps: float = 0.0
         self.inference_latency_ms: float = 0.0
-        self.last_frame_time = time.time()
-        self.frame_counter = 0
 
     def start(self):
-        """Starts the background CV pipeline thread."""
         if self.running:
             return
         self.running = True
@@ -517,7 +594,6 @@ class VisionEngine:
         self.worker_thread.start()
 
     def stop(self):
-        """Stops the pipeline thread and releases hardware resources."""
         self.running = False
         if self.worker_thread and self.worker_thread.is_alive():
             self.worker_thread.join(timeout=2.0)
@@ -525,9 +601,7 @@ class VisionEngine:
             self.cap.release()
 
     def _init_camera(self):
-        """Attempts physical camera ingestion, gracefully falling back to synthetic test stream."""
         try:
-            # On Linux/RPi, prefer CAP_V4L2
             if platform.system().lower() == "linux":
                 self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_V4L2)
             else:
@@ -545,12 +619,10 @@ class VisionEngine:
         except Exception as e:
             print(f"[VisionEngine] Physical camera open warning: {e}")
 
-        # Fallback
         self.use_synthetic = True
-        print("[VisionEngine] No physical camera found or frame read failed. Auto-fallback to Synthetic Retail Simulation Generator.")
+        print("[VisionEngine] No physical camera found. Auto-fallback to Synthetic Simulation Generator.")
 
     def _init_model(self):
-        """Initializes Ultralytics YOLOv8 nano model."""
         if not YOLO_AVAILABLE:
             print("[VisionEngine] Ultralytics not installed. Operating in synthetic telemetry mode.")
             return
@@ -561,11 +633,10 @@ class VisionEngine:
             self.model_loaded = True
             print("[VisionEngine] YOLOv8 model loaded successfully.")
         except Exception as e:
-            print(f"[VisionEngine] Warning loading YOLO model: {e}. Fallback to simulated edge detections.")
+            print(f"[VisionEngine] Warning loading YOLO model: {e}. Fallback to simulated detections.")
             self.model_loaded = False
 
     def _run_loop(self):
-        """Main CV ingestion and inference execution loop."""
         self._init_camera()
         self._init_model()
 
@@ -574,8 +645,6 @@ class VisionEngine:
 
         while self.running:
             loop_start = time.time()
-
-            # 1. Frame Ingestion
             frame: Optional[np.ndarray] = None
             synthetic_detections = []
 
@@ -584,7 +653,6 @@ class VisionEngine:
                 if ret and frame_read is not None:
                     frame = frame_read
                 else:
-                    # Camera disconnected during run -> fallback
                     self.use_synthetic = True
                     frame, synthetic_detections = self.synthetic_gen.generate_frame()
             else:
@@ -595,14 +663,11 @@ class VisionEngine:
                 continue
 
             frame_h, frame_w = frame.shape[:2]
-
-            # 2. YOLOv8 Inference or Synthetic Detections
             infer_start = time.time()
             detections = []
 
             if self.model_loaded and self.model is not None and not self.use_synthetic:
                 try:
-                    # Run lightweight CPU inference with ARM-optimized image size
                     results = self.model(frame, imgsz=self.imgsz, verbose=False, conf=0.35)
                     for r in results:
                         boxes = r.boxes
@@ -622,119 +687,135 @@ class VisionEngine:
                     print(f"[VisionEngine] Inference error: {e}")
                     detections = synthetic_detections
             else:
-                # Use synthetic high-fidelity detections
                 detections = synthetic_detections
 
             self.inference_latency_ms = (time.time() - infer_start) * 1000.0
 
-            # 3. State Machine Update
+            # State Machine & Spatial Tracker Update
             self.state_machine.update(detections, frame_w, frame_h)
 
-            # 4. Render Edge HUD & Overlays on Frame
+            # Render Overlays, Glowing Trajectories & HUD
             annotated_frame = self._render_hud_and_overlays(frame, detections, frame_w, frame_h)
 
-            # 5. Encode JPEG & Double Buffer Update
+            # Encode JPEG Buffer
             ret, jpeg_buf = cv2.imencode('.jpg', annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
             if ret:
                 with self.lock:
                     self.latest_frame = annotated_frame
                     self.latest_jpeg = jpeg_buf.tobytes()
 
-            # 6. FPS Calculation
             fps_frames += 1
             if time.time() - fps_timer >= 1.0:
                 self.edge_fps = fps_frames / (time.time() - fps_timer)
                 fps_frames = 0
                 fps_timer = time.time()
 
-            # 7. Adaptive Rate Governor to prevent thermal throttling on RPi5
             elapsed = time.time() - loop_start
-            target_period = 1.0 / 30.0  # 30 FPS target
+            target_period = 1.0 / 30.0
             if elapsed < target_period:
                 time.sleep(target_period - elapsed)
 
     def _render_hud_and_overlays(self, frame: np.ndarray, detections: List[Dict[str, Any]], w: int, h: int) -> np.ndarray:
         """Renders industrial dark HUD, glowing ROI bounding boxes, and object markers."""
         out = frame.copy()
-
-        # 1. Draw Spatial ROI Bounding Zones with glowing tints
         overlay = out.copy()
 
-        # Shelf Zone (Left: 0% to 40% X)
+        # 1. Draw Spatial ROI Bounding Zones
         s_x1, s_y1 = int(SpatialZones.SHELF["x1"] * w), int(SpatialZones.SHELF["y1"] * h)
         s_x2, s_y2 = int(SpatialZones.SHELF["x2"] * w), int(SpatialZones.SHELF["y2"] * h)
 
         if self.state_machine.shelf_alert_active:
-            shelf_color = (0, 0, 230)  # Red Alert
-            shelf_tint = (20, 20, 80)
+            shelf_color = (0, 0, 240)
+            shelf_tint = (15, 15, 60)
         elif self.state_machine.is_shelf_occluded:
-            shelf_color = (0, 180, 255)  # Amber Customer Browsing
-            shelf_tint = (10, 40, 60)
+            shelf_color = (0, 180, 255)
+            shelf_tint = (10, 35, 55)
         else:
-            shelf_color = (0, 200, 120)  # Green Optimal
+            shelf_color = (0, 200, 120)
             shelf_tint = (10, 40, 20)
 
         cv2.rectangle(overlay, (s_x1, s_y1), (s_x2, s_y2), shelf_tint, -1)
         cv2.rectangle(out, (s_x1, s_y1), (s_x2, s_y2), shelf_color, 2)
 
-        # Transit Corridor (Middle: 40% to 60% X)
+        # Transit Corridor
         t_x1, t_y1 = int(SpatialZones.TRANSIT["x1"] * w), int(SpatialZones.TRANSIT["y1"] * h)
         t_x2, t_y2 = int(SpatialZones.TRANSIT["x2"] * w), int(SpatialZones.TRANSIT["y2"] * h)
-        cv2.rectangle(out, (t_x1, t_y1), (t_x2, t_y2), (90, 90, 100), 1)
+        cv2.rectangle(out, (t_x1, t_y1), (t_x2, t_y2), (80, 85, 95), 1)
 
-        # Checkout Queue Zone (Right: 60% to 100% X)
+        # Queue Zone
         q_x1, q_y1 = int(SpatialZones.QUEUE["x1"] * w), int(SpatialZones.QUEUE["y1"] * h)
         q_x2, q_y2 = int(SpatialZones.QUEUE["x2"] * w), int(SpatialZones.QUEUE["y2"] * h)
 
         if self.state_machine.queue_congestion_alert:
-            q_color = (0, 0, 240)  # Red Congestion
-            q_tint = (20, 20, 80)
+            q_color = (0, 0, 240)
+            q_tint = (20, 15, 60)
         else:
-            q_color = (220, 140, 0)  # Blue/Teal Normal Flow
-            q_tint = (40, 25, 10)
+            q_color = (220, 140, 0)
+            q_tint = (35, 25, 10)
 
         cv2.rectangle(overlay, (q_x1, q_y1), (q_x2, q_y2), q_tint, -1)
         cv2.rectangle(out, (q_x1, q_y1), (q_x2, q_y2), q_color, 2)
+        cv2.addWeighted(overlay, 0.22, out, 0.78, 0, out)
 
-        # Alpha blend zone tints
-        cv2.addWeighted(overlay, 0.25, out, 0.75, 0, out)
-
-        # Zone Header Tags
+        # Zone Labels
         cv2.putText(out, "ROI 1: SHELF ZONE (0-40%)", (s_x1 + 6, s_y1 + 18),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, shelf_color, 1)
         cv2.putText(out, "ROI 2: TRANSIT (40-60%)", (t_x1 + 4, t_y1 + 18),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.32, (160, 160, 170), 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.32, (150, 155, 165), 1)
         cv2.putText(out, "ROI 3: CHECKOUT QUEUE (60-100%)", (q_x1 + 6, q_y1 + 18),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, q_color, 1)
 
-        # 2. Draw Object Detections
+        # 2. Draw Fading Motion Trajectories & Centroid Crosshairs
+        with self.state_machine.lock:
+            for tid, entity in self.state_machine.active_tracks.items():
+                pts = entity.history
+                for i in range(1, len(pts)):
+                    alpha = i / len(pts)
+                    thickness = max(1, int(alpha * 3))
+                    col = (int(0 * alpha), int(220 * alpha), int(255 * alpha))
+                    cv2.line(out, pts[i - 1], pts[i], col, thickness)
+
+                # Crosshairs on centroid
+                cx, cy = int(entity.centroid[0]), int(entity.centroid[1])
+                cv2.drawMarker(out, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, 10, 1)
+
+                # CSIM Raycast indicator if near shelf
+                if entity.occluding_shelf:
+                    cv2.line(out, (cx, cy), (s_x2, cy), (0, 180, 255), 1, cv2.LINE_AA)
+                    cv2.putText(out, "CSIM LOCK", (cx - 25, cy - 8),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.30, (0, 200, 255), 1)
+
+        # 3. Draw Bounding Boxes with Detailed Tracking Badges
         for det in detections:
             bx1, by1, bx2, by2 = [int(v) for v in det["box"]]
             cname = det.get("class_name", "obj")
             conf = det.get("confidence", 0.0)
+            tid = det.get("track_id")
 
             if cname == "person":
                 b_color = (0, 220, 255)
+                # Lookup dwell time
+                with self.state_machine.lock:
+                    entity = self.state_machine.active_tracks.get(tid)
+                    dwell_str = f"{entity.dwell_time_sec}s" if entity else "0s"
+                    zone_str = entity.zone if entity else "TRANSIT"
+                tag = f"#{tid} {cname} | {dwell_str} | {zone_str}"
             else:
                 b_color = (255, 180, 50)
+                tag = f"{cname} {conf:.2f}"
 
             cv2.rectangle(out, (bx1, by1), (bx2, by2), b_color, 2)
 
-            # Label tag
-            label_text = f"{cname} {conf:.2f}"
-            (tw, th), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
-            cv2.rectangle(out, (bx1, by1 - th - 6), (bx1 + tw + 6, by1), b_color, -1)
-            cv2.putText(out, label_text, (bx1 + 3, by1 - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (10, 10, 10), 1)
+            (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+            cv2.rectangle(out, (bx1, by1 - th - 6), (bx1 + tw + 6, by1), (15, 18, 24), -1)
+            cv2.rectangle(out, (bx1, by1 - th - 6), (bx1 + tw + 6, by1), b_color, 1)
+            cv2.putText(out, tag, (bx1 + 3, by1 - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (240, 240, 250), 1)
 
-            # Centroid point
-            cx, cy = int(det.get("centroid", [(bx1 + bx2) / 2, (by1 + by2) / 2])[0]), int(det.get("centroid", [(bx1 + bx2) / 2, (by1 + by2) / 2])[1])
-            cv2.circle(out, (cx, cy), 3, (0, 255, 255), -1)
-
-        # 3. Top Edge HUD Bar
+        # 4. Top Edge HUD Bar
         hud_h = 28
-        cv2.rectangle(out, (0, 0), (w, hud_h), (15, 18, 24), -1)
-        cv2.line(out, (0, hud_h), (w, hud_h), (45, 52, 65), 1)
+        cv2.rectangle(out, (0, 0), (w, hud_h), (11, 14, 22), -1)
+        cv2.line(out, (0, hud_h), (w, hud_h), (40, 48, 60), 1)
 
         hud_title = "EDGERETAIL AI // SIH26179"
         cv2.putText(out, hud_title, (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 240, 255), 1)
@@ -742,14 +823,13 @@ class VisionEngine:
         hud_stats = f"FPS: {self.edge_fps:.1f} | Latency: {self.inference_latency_ms:.1f}ms | 100% On-Device"
         cv2.putText(out, hud_stats, (w - 340, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 210, 230), 1)
 
-        # Pulse live dot
         dot_color = (0, 255, 100) if (int(time.time() * 2) % 2 == 0) else (0, 180, 60)
         cv2.circle(out, (w - 355, 14), 4, dot_color, -1)
 
-        # 4. Bottom Status HUD Banner
+        # 5. Bottom Status HUD Banner
         bot_h = 24
-        cv2.rectangle(out, (0, h - bot_h), (w, h), (15, 18, 24), -1)
-        cv2.line(out, (0, h - bot_h), (w, h - bot_h), (45, 52, 65), 1)
+        cv2.rectangle(out, (0, h - bot_h), (w, h), (11, 14, 22), -1)
+        cv2.line(out, (0, h - bot_h), (w, h - bot_h), (40, 48, 60), 1)
 
         shelf_banner = f"Shelf: {self.state_machine.shelf_status} ({self.state_machine.stock_count} items)"
         queue_banner = f"Queue: {self.state_machine.queue_status} ({self.state_machine.queue_customer_count} ppl - {self.state_machine.estimated_wait_min}m)"
@@ -762,12 +842,10 @@ class VisionEngine:
         return out
 
     def get_jpeg_frame(self) -> Optional[bytes]:
-        """Returns latest encoded JPEG frame bytes."""
         with self.lock:
             return self.latest_jpeg
 
     def get_telemetry_payload(self) -> Dict[str, Any]:
-        """Returns full JSON telemetry dictionary matching specification."""
         hw = HardwareProfiler.get_telemetry(self.edge_fps, self.inference_latency_ms)
         sm = self.state_machine
 
@@ -784,6 +862,7 @@ class VisionEngine:
                 "estimated_wait_min": sm.estimated_wait_min,
                 "congestion_alert": sm.queue_congestion_alert,
             }
+            active_tracks_list = [t.to_dict() for t in sm.active_tracks.values()]
 
         return {
             "device": hw,
@@ -791,6 +870,7 @@ class VisionEngine:
             "inference_latency_ms": hw["inference_latency_ms"],
             "shelf": shelf_data,
             "queue": queue_data,
+            "tracks": active_tracks_list,
             "compliance": {
                 "dpdp_compliant": True,
                 "cloud_bandwidth_kbps": 0.0,
@@ -803,28 +883,24 @@ class VisionEngine:
 
 
 # ==============================================================================
-# 5. FASTAPI WEB SERVER & ROUTING
+# 6. FASTAPI WEB SERVER & ROUTING
 # ==============================================================================
 
-# Global vision engine instance
 engine = VisionEngine()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     engine.start()
     yield
-    # Shutdown
     engine.stop()
 
 app = FastAPI(
     title="EdgeRetail AI // SIH26179",
     description="On-Device Retail Vision Analytics Platform for Raspberry Pi 5 & Edge Appliances",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
 
-# Enable CORS for local testing & LAN dashboard access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -833,7 +909,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static directory setup
 STATIC_DIR = Path(__file__).parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -841,7 +916,6 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
-    """Serves the Single-Page Application Dashboard with no-cache headers."""
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(
@@ -853,7 +927,6 @@ async def serve_dashboard():
 
 @app.get("/presentation", response_class=HTMLResponse)
 async def serve_presentation():
-    """Serves the Apple Keynote / Linear-style interactive pitch deck with no-cache headers."""
     pres_path = STATIC_DIR / "presentation.html"
     if pres_path.exists():
         return FileResponse(
@@ -864,18 +937,16 @@ async def serve_presentation():
 
 
 def gen_mjpeg_stream():
-    """Generates MJPEG multipart frame stream."""
     while True:
         frame_bytes = engine.get_jpeg_frame()
         if frame_bytes is not None:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.033)  # ~30 FPS
+        time.sleep(0.033)
 
 
 @app.get("/video_feed")
 async def video_feed():
-    """Multipart HTTP video stream with HUD & bounding boxes."""
     return StreamingResponse(
         gen_mjpeg_stream(),
         media_type="multipart/x-mixed-replace; boundary=frame"
@@ -884,13 +955,24 @@ async def video_feed():
 
 @app.get("/metrics")
 async def get_metrics():
-    """Returns real-time JSON telemetry contract."""
     return JSONResponse(content=engine.get_telemetry_payload())
+
+
+@app.get("/api/diagnostics/tracking")
+async def get_tracking_diagnostics():
+    """Returns granular spatial tracking diagnostics."""
+    payload = engine.get_telemetry_payload()
+    return JSONResponse(content={
+        "timestamp": payload["timestamp"],
+        "active_track_count": len(payload["tracks"]),
+        "tracks": payload["tracks"],
+        "shelf": payload["shelf"],
+        "queue": payload["queue"]
+    })
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for container / systemd monitoring."""
     return {
         "status": "healthy",
         "vision_engine_running": engine.running,
@@ -900,7 +982,7 @@ async def health_check():
 
 
 class SimulationControlRequest(BaseModel):
-    mode: Optional[str] = None  # AUTO_CYCLE, RESTOCK_EMPTY, CUSTOMER_OCCLUSION, QUEUE_CONGESTION
+    mode: Optional[str] = None
     stock_override: Optional[int] = None
     queue_override: Optional[int] = None
     occlusion_override: Optional[bool] = None
@@ -908,7 +990,6 @@ class SimulationControlRequest(BaseModel):
 
 @app.post("/api/simulation/control")
 async def control_simulation(req: SimulationControlRequest):
-    """Allows dynamic testbed scenario switching from the dashboard."""
     if req.mode:
         engine.synthetic_gen.set_mode(req.mode)
     if req.stock_override is not None:
@@ -929,7 +1010,6 @@ async def control_simulation(req: SimulationControlRequest):
 
 @app.websocket("/ws/live-metrics")
 async def websocket_live_metrics(websocket: WebSocket):
-    """WebSocket connection streaming live telemetry at 5 Hz."""
     await websocket.accept()
     try:
         while True:
@@ -941,10 +1021,6 @@ async def websocket_live_metrics(websocket: WebSocket):
     except Exception:
         pass
 
-
-# ==============================================================================
-# 6. STANDALONE ENTRYPOINT
-# ==============================================================================
 
 if __name__ == "__main__":
     import uvicorn
