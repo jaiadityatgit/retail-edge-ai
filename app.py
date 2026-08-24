@@ -841,19 +841,25 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
-    """Serves the Single-Page Application Dashboard."""
+    """Serves the Single-Page Application Dashboard with no-cache headers."""
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
-        return FileResponse(str(index_path))
+        return FileResponse(
+            str(index_path),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        )
     return HTMLResponse("<h2>Dashboard initializing. static/index.html not found.</h2>")
 
 
 @app.get("/presentation", response_class=HTMLResponse)
 async def serve_presentation():
-    """Serves the Apple Keynote / Linear-style interactive pitch deck."""
+    """Serves the Apple Keynote / Linear-style interactive pitch deck with no-cache headers."""
     pres_path = STATIC_DIR / "presentation.html"
     if pres_path.exists():
-        return FileResponse(str(pres_path))
+        return FileResponse(
+            str(pres_path),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        )
     return HTMLResponse("<h2>Presentation slide deck initializing. static/presentation.html not found.</h2>")
 
 
