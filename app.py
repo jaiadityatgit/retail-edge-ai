@@ -414,6 +414,8 @@ class DualCameraVisionEngine:
         self.cam1_latency = 0.0
         self.cam1_frame: Optional[np.ndarray] = None
         self.cam1_jpeg: Optional[bytes] = None
+        self.cam1_detections: List[Dict[str, Any]] = []
+        self.cam1_counter: int = 0
         self.lock1 = threading.Lock()
 
         # Camera 2 (Mobile / Secondary)
@@ -425,6 +427,8 @@ class DualCameraVisionEngine:
         self.cam2_latency = 0.0
         self.cam2_frame: Optional[np.ndarray] = None
         self.cam2_jpeg: Optional[bytes] = None
+        self.cam2_detections: List[Dict[str, Any]] = []
+        self.cam2_counter: int = 0
         self.cam2_source = "Synthetic Queue Stream"
         self.last_mobile_frame_time = 0.0
         self.lock2 = threading.Lock()
@@ -644,7 +648,10 @@ class DualCameraVisionEngine:
                 ret, r_frame = self.cam1_cap.read()
                 if ret and r_frame is not None:
                     frame = r_frame
-                    detections = self._run_inference(frame)
+                    if self.cam1_counter % 2 == 0 or len(self.cam1_detections) == 0:
+                        self.cam1_detections = self._run_inference(frame)
+                    self.cam1_counter += 1
+                    detections = self.cam1_detections
                 else:
                     frame, detections = self.cam1_synthetic.generate()
             else:
@@ -661,7 +668,7 @@ class DualCameraVisionEngine:
                 self._process_queue_role(detections, w, h)
 
             annotated = self._render_feed(frame, detections, self.cam1_role, "CAM 01 (PRIMARY)")
-            ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+            ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
 
             if ret:
                 with self.lock1:
@@ -696,7 +703,10 @@ class DualCameraVisionEngine:
             if is_mobile_active and self.cam2_frame is not None:
                 with self.lock2:
                     frame = self.cam2_frame.copy()
-                detections = self._run_inference(frame)
+                if self.cam2_counter % 2 == 0 or len(self.cam2_detections) == 0:
+                    self.cam2_detections = self._run_inference(frame)
+                self.cam2_counter += 1
+                detections = self.cam2_detections
             else:
                 self.cam2_source = "Synthetic Queue Stream"
                 frame, detections = self.cam2_synthetic.generate()
@@ -712,7 +722,7 @@ class DualCameraVisionEngine:
                 self._process_shelf_role(detections, w, h)
 
             annotated = self._render_feed(frame, detections, self.cam2_role, f"CAM 02 ({self.cam2_source})")
-            ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+            ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
 
             if ret:
                 with self.lock2:

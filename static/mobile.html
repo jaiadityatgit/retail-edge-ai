@@ -103,12 +103,12 @@
             <img id="snapshot-preview" class="w-full h-full object-cover hidden" alt="Snapshot Preview" />
 
             <!-- Hidden canvas for binary JPEG extraction -->
-            <canvas id="capture-canvas" width="640" height="360" class="hidden"></canvas>
+            <canvas id="capture-canvas" width="480" height="270" class="hidden"></canvas>
 
             <!-- Live HUD Tag -->
             <div class="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-cyan-300">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-                <span>REC • 640x360</span>
+                <span>REC • 480x270</span>
             </div>
 
             <!-- FPS & Latency Counter -->
@@ -278,30 +278,36 @@
             }
         }
 
-        // 4. Binary Frame Transmission Loop (20 FPS)
+        // 4. Ultra-Low-Latency Binary Frame Transmission Loop (20 FPS with Backpressure Guard)
         function startStreamingFrames() {
             if (isStreaming) return;
             isStreaming = true;
 
-            const targetPeriod = 1000 / 20; // 20 FPS
+            let lastSendTime = 0;
+            const targetInterval = 50; // 50ms = 20 FPS
 
-            function sendFrame() {
+            function loop(now) {
                 if (!isStreaming) return;
 
-                if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    canvas.toBlob((blob) => {
-                        if (blob && ws && ws.readyState === WebSocket.OPEN) {
-                            blob.arrayBuffer().then(buffer => {
-                                ws.send(buffer);
-                                frameCount++;
-                            });
+                if (now - lastSendTime >= targetInterval) {
+                    if (ws && ws.readyState === WebSocket.OPEN && video.readyState >= 2) {
+                        // CRITICAL BACKPRESSURE GUARD: Skip frame if previous frame is still in transit over Wi-Fi
+                        if (ws.bufferedAmount === 0) {
+                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob((blob) => {
+                                if (blob && ws && ws.readyState === WebSocket.OPEN) {
+                                    blob.arrayBuffer().then(buffer => {
+                                        ws.send(buffer);
+                                        frameCount++;
+                                    });
+                                }
+                            }, 'image/jpeg', 0.45);
+                            lastSendTime = now;
                         }
-                    }, 'image/jpeg', 0.65);
+                    }
                 }
 
-                // Update FPS calculation
-                const now = performance.now();
+                // Update FPS calculation every second
                 if (now - lastFpsTime >= 1000) {
                     const fps = (frameCount * 1000) / (now - lastFpsTime);
                     document.getElementById('mobile-fps').innerText = fps.toFixed(1);
@@ -309,10 +315,10 @@
                     lastFpsTime = now;
                 }
 
-                setTimeout(sendFrame, targetPeriod);
+                requestAnimationFrame(loop);
             }
 
-            sendFrame();
+            requestAnimationFrame(loop);
         }
 
         // 5. Fallback: Direct HTML5 Snapshot / Photo Capture
