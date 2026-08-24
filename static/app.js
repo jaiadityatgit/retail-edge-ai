@@ -240,7 +240,6 @@ class RoiCalibrator {
 
     async open(camId) {
         this.activeCamId = camId;
-        this.activeZoneId = 'shelf_tier_1';
         this.zonesConfig = { shelf_zones: [], queue_lanes: [] };
         
         // Determine role from active telemetry or default
@@ -263,41 +262,205 @@ class RoiCalibrator {
             console.warn('[Zones Fetch]', e);
         }
 
-        this.selectZone(this.activeZone === "SHELF" ? "shelf_tier_1" : "reg_1");
+        if (!this.zonesConfig.shelf_zones || this.zonesConfig.shelf_zones.length === 0) {
+            this.zonesConfig.shelf_zones = [
+                { id: 'shelf_tier_1', name: 'Tier 1 - Soft Drinks & Beverages', box: [0.10, 0.18, 0.90, 0.48], capacity: 6, low_stock_threshold: 2 },
+                { id: 'shelf_tier_2', name: 'Tier 2 - Snacks & Packaged Goods', box: [0.10, 0.52, 0.90, 0.85], capacity: 8, low_stock_threshold: 2 }
+            ];
+        }
+
+        if (!this.zonesConfig.queue_lanes || this.zonesConfig.queue_lanes.length === 0) {
+            this.zonesConfig.queue_lanes = [
+                { id: 'reg_1', name: 'Counter 1 (General)', box: [0.10, 0.20, 0.48, 0.85], max_wait_threshold_min: 3.0 },
+                { id: 'reg_2', name: 'Counter 2 (Express)', box: [0.52, 0.20, 0.90, 0.85], max_wait_threshold_min: 3.0 }
+            ];
+        }
+
+        const defaultZone = this.activeZone === "SHELF" 
+            ? (this.zonesConfig.shelf_zones[0] ? this.zonesConfig.shelf_zones[0].id : 'shelf_tier_1')
+            : (this.zonesConfig.queue_lanes[0] ? this.zonesConfig.queue_lanes[0].id : 'reg_1');
+
+        this.selectZone(defaultZone);
 
         if (this.modal) this.modal.classList.remove('hidden');
     }
 
+    renderZoneSelectorButtons() {
+        const container = document.getElementById('calib-zone-selector');
+        if (!container) return;
+
+        let html = '';
+        if (this.zonesConfig.shelf_zones) {
+            this.zonesConfig.shelf_zones.forEach(z => {
+                const isActive = z.id === this.activeZoneId;
+                const cls = isActive 
+                    ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition flex items-center gap-1.5'
+                    : 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition flex items-center gap-1.5 hover:bg-white/[0.08]';
+                html += `<button onclick="selectCalibZone('${z.id}')" id="btn-zone-${z.id}" class="${cls}">
+                    <i data-lucide="package" class="w-3.5 h-3.5 ${isActive ? 'text-cyan-400' : 'text-slate-500'}"></i>
+                    <span>${z.name}</span>
+                </button>`;
+            });
+        }
+
+        if (this.zonesConfig.queue_lanes) {
+            this.zonesConfig.queue_lanes.forEach(l => {
+                const isActive = l.id === this.activeZoneId;
+                const cls = isActive 
+                    ? 'px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/60 font-bold transition flex items-center gap-1.5'
+                    : 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition flex items-center gap-1.5 hover:bg-white/[0.08]';
+                html += `<button onclick="selectCalibZone('${l.id}')" id="btn-zone-${l.id}" class="${cls}">
+                    <i data-lucide="users" class="w-3.5 h-3.5 ${isActive ? 'text-amber-400' : 'text-slate-500'}"></i>
+                    <span>${l.name}</span>
+                </button>`;
+            });
+        }
+
+        container.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    }
+
     selectZone(zoneId) {
         this.activeZoneId = zoneId;
-        
-        // Highlight active zone selector button
-        const buttons = document.querySelectorAll('#calib-zone-selector button');
-        buttons.forEach(btn => {
-            if (btn.id === `btn-zone-${zoneId}`) {
-                btn.className = 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition';
-            } else {
-                btn.className = 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition';
-            }
-        });
 
-        // Find target zone box
+        // Find target zone
         let target = null;
+        let isShelf = false;
         if (this.zonesConfig.shelf_zones) {
             target = this.zonesConfig.shelf_zones.find(z => z.id === zoneId);
+            if (target) isShelf = true;
         }
         if (!target && this.zonesConfig.queue_lanes) {
             target = this.zonesConfig.queue_lanes.find(l => l.id === zoneId);
+            if (target) isShelf = false;
         }
 
-        if (target && target.box) {
-            this.roi = { x1: target.box[0], y1: target.box[1], x2: target.box[2], y2: target.box[3] };
+        if (target) {
+            if (target.box) {
+                this.roi = { x1: target.box[0], y1: target.box[1], x2: target.box[2], y2: target.box[3] };
+            }
             const tag = document.getElementById('calib-zone-tag');
             if (tag) tag.innerText = `// ${target.name.toUpperCase()}`;
+
+            const nameInput = document.getElementById('calib-zone-name-input');
+            if (nameInput) nameInput.value = target.name || '';
+
+            const paramLabel = document.getElementById('calib-zone-param-label');
+            const paramInput = document.getElementById('calib-zone-param-input');
+            if (paramLabel && paramInput) {
+                if (isShelf) {
+                    paramLabel.innerText = 'Capacity:';
+                    paramInput.value = target.capacity || 6;
+                } else {
+                    paramLabel.innerText = 'Max Wait (m):';
+                    paramInput.value = target.max_wait_threshold_min || 3.0;
+                }
+            }
         }
 
+        this.renderZoneSelectorButtons();
         this.render();
         this.updateLabels();
+    }
+
+    addNewQueueLane() {
+        const nextIdx = (this.zonesConfig.queue_lanes ? this.zonesConfig.queue_lanes.length : 0) + 1;
+        const newId = `reg_${Date.now()}`;
+        const newLane = {
+            id: newId,
+            name: `Counter ${nextIdx} (Billing Lane)`,
+            box: [0.15 + (nextIdx % 3) * 0.25, 0.20, 0.38 + (nextIdx % 3) * 0.25, 0.85],
+            max_wait_threshold_min: 3.0
+        };
+
+        if (!this.zonesConfig.queue_lanes) this.zonesConfig.queue_lanes = [];
+        this.zonesConfig.queue_lanes.push(newLane);
+        this.selectZone(newId);
+        soundManager.playAlertTone('normal');
+    }
+
+    addNewShelfTier() {
+        const nextIdx = (this.zonesConfig.shelf_zones ? this.zonesConfig.shelf_zones.length : 0) + 1;
+        const newId = `shelf_tier_${Date.now()}`;
+        const newTier = {
+            id: newId,
+            name: `Tier ${nextIdx} - Product Section`,
+            box: [0.10, 0.15 + (nextIdx % 4) * 0.20, 0.90, 0.32 + (nextIdx % 4) * 0.20],
+            capacity: 6,
+            low_stock_threshold: 2
+        };
+
+        if (!this.zonesConfig.shelf_zones) this.zonesConfig.shelf_zones = [];
+        this.zonesConfig.shelf_zones.push(newTier);
+        this.selectZone(newId);
+        soundManager.playAlertTone('normal');
+    }
+
+    deleteActiveZone() {
+        if (!this.activeZoneId) return;
+
+        let deleted = false;
+        if (this.zonesConfig.shelf_zones && this.zonesConfig.shelf_zones.some(z => z.id === this.activeZoneId)) {
+            if (this.zonesConfig.shelf_zones.length <= 1) {
+                alert('⚠️ Store must maintain at least 1 configured shelf tier.');
+                return;
+            }
+            this.zonesConfig.shelf_zones = this.zonesConfig.shelf_zones.filter(z => z.id !== this.activeZoneId);
+            deleted = true;
+        } else if (this.zonesConfig.queue_lanes && this.zonesConfig.queue_lanes.some(l => l.id === this.activeZoneId)) {
+            if (this.zonesConfig.queue_lanes.length <= 1) {
+                alert('⚠️ Store must maintain at least 1 configured checkout register.');
+                return;
+            }
+            this.zonesConfig.queue_lanes = this.zonesConfig.queue_lanes.filter(l => l.id !== this.activeZoneId);
+            deleted = true;
+        }
+
+        if (deleted) {
+            const nextZone = (this.zonesConfig.queue_lanes && this.zonesConfig.queue_lanes.length > 0)
+                ? this.zonesConfig.queue_lanes[0].id
+                : (this.zonesConfig.shelf_zones && this.zonesConfig.shelf_zones.length > 0 ? this.zonesConfig.shelf_zones[0].id : null);
+            if (nextZone) {
+                this.selectZone(nextZone);
+            }
+            soundManager.playAlertTone('normal');
+        }
+    }
+
+    updateActiveZoneName(val) {
+        if (!this.activeZoneId) return;
+        let target = null;
+        if (this.zonesConfig.shelf_zones) target = this.zonesConfig.shelf_zones.find(z => z.id === this.activeZoneId);
+        if (!target && this.zonesConfig.queue_lanes) target = this.zonesConfig.queue_lanes.find(l => l.id === this.activeZoneId);
+        if (target) {
+            target.name = val;
+            const tag = document.getElementById('calib-zone-tag');
+            if (tag) tag.innerText = `// ${val.toUpperCase()}`;
+            this.renderZoneSelectorButtons();
+            this.render();
+        }
+    }
+
+    updateActiveZoneParam(val) {
+        if (!this.activeZoneId) return;
+        let target = null;
+        let isShelf = false;
+        if (this.zonesConfig.shelf_zones) {
+            target = this.zonesConfig.shelf_zones.find(z => z.id === this.activeZoneId);
+            if (target) isShelf = true;
+        }
+        if (!target && this.zonesConfig.queue_lanes) {
+            target = this.zonesConfig.queue_lanes.find(l => l.id === this.activeZoneId);
+            if (target) isShelf = false;
+        }
+
+        if (target) {
+            if (isShelf) {
+                target.capacity = Math.max(1, parseInt(val) || 6);
+            } else {
+                target.max_wait_threshold_min = Math.max(0.5, parseFloat(val) || 3.0);
+            }
+        }
     }
 
     close() {
@@ -305,16 +468,12 @@ class RoiCalibrator {
     }
 
     applyPreset(presetName) {
-        if (presetName === 'DEFAULT') {
-            if (this.activeZoneId === 'shelf_tier_1') {
-                this.roi = { x1: 0.10, y1: 0.18, x2: 0.90, y2: 0.48 };
-            } else if (this.activeZoneId === 'shelf_tier_2') {
-                this.roi = { x1: 0.10, y1: 0.52, x2: 0.90, y2: 0.85 };
-            } else if (this.activeZoneId === 'reg_1') {
-                this.roi = { x1: 0.10, y1: 0.20, x2: 0.48, y2: 0.85 };
-            } else {
-                this.roi = { x1: 0.52, y1: 0.20, x2: 0.90, y2: 0.85 };
-            }
+        if (presetName === 'LEFT_HALF') {
+            this.roi = { x1: 0.05, y1: 0.15, x2: 0.48, y2: 0.85 };
+        } else if (presetName === 'RIGHT_HALF') {
+            this.roi = { x1: 0.52, y1: 0.15, x2: 0.95, y2: 0.85 };
+        } else if (presetName === 'CENTER') {
+            this.roi = { x1: 0.25, y1: 0.20, x2: 0.75, y2: 0.80 };
         } else if (presetName === 'FULL') {
             this.roi = { x1: 0.05, y1: 0.05, x2: 0.95, y2: 0.95 };
         }
@@ -363,7 +522,29 @@ class RoiCalibrator {
             } catch (e) {}
         }
 
-        // Dim area outside active ROI
+        // Draw all inactive zones faintly in background
+        const allZones = [...(this.zonesConfig.shelf_zones || []), ...(this.zonesConfig.queue_lanes || [])];
+        allZones.forEach(z => {
+            if (z.id !== this.activeZoneId && z.box) {
+                const zx1 = z.box[0] * cw;
+                const zy1 = z.box[1] * ch;
+                const zw = (z.box[2] - z.box[0]) * cw;
+                const zh = (z.box[3] - z.box[1]) * ch;
+                const zcol = z.id.startsWith('shelf') ? 'rgba(6, 182, 212, 0.4)' : 'rgba(245, 158, 11, 0.4)';
+
+                this.ctx.setLineDash([4, 4]);
+                this.ctx.strokeStyle = zcol;
+                this.ctx.lineWidth = 1.5;
+                this.ctx.strokeRect(zx1, zy1, zw, zh);
+                this.ctx.setLineDash([]);
+
+                this.ctx.fillStyle = zcol;
+                this.ctx.font = '10px "JetBrains Mono", monospace';
+                this.ctx.fillText(z.name || z.id, zx1 + 4, zy1 + 12);
+            }
+        });
+
+        // Dim area outside active selected ROI
         const px1 = this.roi.x1 * cw;
         const py1 = this.roi.y1 * ch;
         const px2 = this.roi.x2 * cw;
@@ -377,14 +558,14 @@ class RoiCalibrator {
         this.ctx.fillRect(px2, py1, cw - px2, rh);
         this.ctx.fillRect(0, py2, cw, ch - py2);
 
-        // Glowing ROI bounding box
+        // Glowing Active ROI bounding box
         const zoneCol = this.activeZoneId.startsWith('shelf') ? '#06B6D4' : '#F59E0B';
         this.ctx.strokeStyle = zoneCol;
         this.ctx.lineWidth = 2.5;
         this.ctx.strokeRect(px1, py1, rw, rh);
 
         // Fill inner tint
-        this.ctx.fillStyle = this.activeZoneId.startsWith('shelf') ? 'rgba(6, 182, 212, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+        this.ctx.fillStyle = this.activeZoneId.startsWith('shelf') ? 'rgba(6, 182, 212, 0.12)' : 'rgba(245, 158, 11, 0.12)';
         this.ctx.fillRect(px1, py1, rw, rh);
 
         // Draw Corner Handles
@@ -407,13 +588,13 @@ class RoiCalibrator {
         // Center Tag
         this.ctx.fillStyle = zoneCol;
         this.ctx.font = 'bold 12px "JetBrains Mono", monospace';
-        const txt = `[ZONE: ${this.activeZoneId.toUpperCase()}]`;
+        const txt = `[SELECTED: ${this.activeZoneId.toUpperCase()}]`;
         this.ctx.fillText(txt, px1 + 10, py1 + 20);
     }
 
     async save() {
         try {
-            // Update the box in zonesConfig
+            // Update the box of active zone in zonesConfig
             const updatedBox = [this.roi.x1, this.roi.y1, this.roi.x2, this.roi.y2];
             if (this.zonesConfig.shelf_zones) {
                 const z = this.zonesConfig.shelf_zones.find(z => z.id === this.activeZoneId);
@@ -432,7 +613,7 @@ class RoiCalibrator {
 
             if (res.ok) {
                 soundManager.playAlertTone('normal');
-                alert(`✅ Successfully updated ${this.activeZoneId} planogram and saved to config.json!`);
+                alert(`✅ Successfully saved planograms & camera queue lanes to config.json!`);
                 this.close();
             } else {
                 alert('Failed to save planogram calibration.');
@@ -456,6 +637,26 @@ function closeCalibrationModal() {
 
 function selectCalibZone(zoneId) {
     roiCalibrator.selectZone(zoneId);
+}
+
+function addNewQueueLane() {
+    roiCalibrator.addNewQueueLane();
+}
+
+function addNewShelfTier() {
+    roiCalibrator.addNewShelfTier();
+}
+
+function deleteActiveZone() {
+    roiCalibrator.deleteActiveZone();
+}
+
+function updateActiveZoneName(val) {
+    roiCalibrator.updateActiveZoneName(val);
+}
+
+function updateActiveZoneParam(val) {
+    roiCalibrator.updateActiveZoneParam(val);
 }
 
 function applyRoiPreset(preset) {

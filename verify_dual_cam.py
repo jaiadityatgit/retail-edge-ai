@@ -112,28 +112,39 @@ def run_verification():
     assert t2["current_count"] == 3
     print("  [PASS] Multi-Shelf Planogram spatial tracking accurately segments item counts.")
 
-    # 5. Test Multi-Register Queue Flow & Smart Traffic Director
-    print("\n[TEST 5] Verifying Multi-Register Queue Flow & Traffic Director...")
-    # Counter 1 (x: 0.10-0.48): place 2 shoppers (congested); Counter 2 (x: 0.52-0.90): 0 shoppers (free)
+    # 5. Test Dynamic Multi-Register Queue Flow & Smart Traffic Ranking (3+ Counters)
+    print("\n[TEST 5] Verifying Dynamic Multi-Register Queue Flow & Traffic Director (3+ Counters)...")
+    # Dynamically configure 3 counters: Counter 1 (Left), Counter 2 (Center), Counter 3 (Right)
+    engine.queue_lanes = [
+        {"id": "reg_1", "name": "Counter 1 (Main Cash)", "box": [0.05, 0.20, 0.32, 0.85], "max_wait_threshold_min": 3.0},
+        {"id": "reg_2", "name": "Counter 2 (UPI & Cards)", "box": [0.35, 0.20, 0.65, 0.85], "max_wait_threshold_min": 3.0},
+        {"id": "reg_3", "name": "Counter 3 (Express Self-Checkout)", "box": [0.68, 0.20, 0.95, 0.85], "max_wait_threshold_min": 3.0}
+    ]
+    # Place 3 shoppers in Counter 1 (congested), 1 in Counter 2, 0 in Counter 3
     simulated_queue_detections = [
-        {"class_id": 0, "class_name": "Shopper", "box": [120, 120, 170, 260], "centroid": [145, 190]},
-        {"class_id": 0, "class_name": "Shopper", "box": [200, 120, 250, 260], "centroid": [225, 190]},
+        {"class_id": 0, "class_name": "Shopper", "box": [50, 120, 100, 260], "centroid": [75, 190]},
+        {"class_id": 0, "class_name": "Shopper", "box": [110, 120, 160, 260], "centroid": [135, 190]},
+        {"class_id": 0, "class_name": "Shopper", "box": [170, 120, 200, 260], "centroid": [185, 190]},
+        {"class_id": 0, "class_name": "Shopper", "box": [280, 120, 330, 260], "centroid": [300, 190]}
     ]
     engine._process_multi_queue_lanes(simulated_queue_detections, 640, 360)
 
     r1 = next(l for l in engine.queue_lanes if l["id"] == "reg_1")
     r2 = next(l for l in engine.queue_lanes if l["id"] == "reg_2")
+    r3 = next(l for l in engine.queue_lanes if l["id"] == "reg_3")
 
     print(f"  -> Counter 1: {r1['headcount']} shoppers ({r1['status']}) • {r1['est_wait_min']}m wait")
     print(f"  -> Counter 2: {r2['headcount']} shoppers ({r2['status']}) • {r2['est_wait_min']}m wait")
+    print(f"  -> Counter 3: {r3['headcount']} shoppers ({r3['status']}) • {r3['est_wait_min']}m wait")
     print(f"  -> Smart Recommendation: {engine.smart_recommendation}")
 
-    assert r1["headcount"] == 2
+    assert r1["headcount"] == 3
     assert r1["status"] == "CONGESTED"
-    assert r2["headcount"] == 0
-    assert r2["status"] == "FREE_AVAILABLE"
-    assert "congested" in engine.smart_recommendation.lower()
-    print("  [PASS] Multi-Register Traffic Director correctly detects congestion and suggests rerouting.")
+    assert r2["headcount"] == 1
+    assert r3["headcount"] == 0
+    assert r3["status"] == "FREE_AVAILABLE"
+    assert "Counter 3" in engine.smart_recommendation or "Express" in engine.smart_recommendation
+    print("  [PASS] Dynamic Multi-Register Traffic Director correctly ranked all 3 counters and recommended the fastest.")
 
     # 6. Test FastAPI Web Server & Multi-Zone API Contracts
     print("\n[TEST 6] Verifying Multi-Zone API Endpoints (/api/config/zones & /api/metrics)...")
@@ -148,26 +159,37 @@ def run_verification():
         assert "shelf_zones" in z_data
         assert "queue_lanes" in z_data
 
-        # POST /api/config/zones
+        # POST /api/config/zones with custom 3 counters & 3 shelf tiers
         res_zones_post = client.post("/api/config/zones", json={
             "shelf_zones": [
-                {"id": "shelf_tier_1", "name": "Tier 1 - Cold Beverages", "box": [0.10, 0.18, 0.90, 0.48], "capacity": 6, "low_stock_threshold": 2},
-                {"id": "shelf_tier_2", "name": "Tier 2 - Snacks & Biscuits", "box": [0.10, 0.52, 0.90, 0.85], "capacity": 8, "low_stock_threshold": 2}
+                {"id": "shelf_tier_1", "name": "Tier 1 - Cold Beverages", "box": [0.10, 0.15, 0.90, 0.40], "capacity": 6, "low_stock_threshold": 2},
+                {"id": "shelf_tier_2", "name": "Tier 2 - Snacks & Biscuits", "box": [0.10, 0.42, 0.90, 0.65], "capacity": 8, "low_stock_threshold": 2},
+                {"id": "shelf_tier_3", "name": "Tier 3 - Fresh Produce", "box": [0.10, 0.68, 0.90, 0.90], "capacity": 10, "low_stock_threshold": 3}
             ],
             "queue_lanes": [
-                {"id": "reg_1", "name": "Counter 1 (Main)", "box": [0.10, 0.20, 0.48, 0.85], "max_wait_threshold_min": 3.0},
-                {"id": "reg_2", "name": "Counter 2 (Self-Checkout)", "box": [0.52, 0.20, 0.90, 0.85], "max_wait_threshold_min": 3.0}
+                {"id": "reg_1", "name": "Counter 1 (General Cash)", "box": [0.05, 0.15, 0.32, 0.85], "max_wait_threshold_min": 3.0},
+                {"id": "reg_2", "name": "Counter 2 (Cards & UPI)", "box": [0.35, 0.15, 0.65, 0.85], "max_wait_threshold_min": 3.0},
+                {"id": "reg_3", "name": "Counter 3 (Self-Checkout)", "box": [0.68, 0.15, 0.95, 0.85], "max_wait_threshold_min": 3.0}
             ]
         })
         print(f"  -> POST /api/config/zones -> Status {res_zones_post.status_code}")
         assert res_zones_post.status_code == 200
-        assert engine.shelf_zones[0]["name"] == "Tier 1 - Cold Beverages"
+        assert len(engine.shelf_zones) == 3
+        assert len(engine.queue_lanes) == 3
+        assert engine.queue_lanes[2]["name"] == "Counter 3 (Self-Checkout)"
 
         # GET /api/metrics
         res_metrics = client.get("/api/metrics")
         print(f"  -> GET /api/metrics -> Status {res_metrics.status_code}")
         assert res_metrics.status_code == 200
         m = res_metrics.json()
+
+        assert len(m["shelf_sections"]) == 3
+        assert len(m["queue_registers"]) == 3
+        print(f"     * Configured Shelf Tiers: {len(m['shelf_sections'])}")
+        print(f"     * Configured Registers: {len(m['queue_registers'])}")
+        print(f"     * Traffic Recommendation: {m['smart_recommendation']}")
+        print("  [PASS] Arbitrary Multi-Zone API contracts and metrics schema verified.")
 
         assert "shelf_sections" in m
         assert "queue_registers" in m

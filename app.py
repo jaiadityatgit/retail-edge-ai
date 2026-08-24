@@ -984,15 +984,18 @@ class DualCameraVisionEngine:
             self.queue_congestion_alert = len(congested_lanes) > 0
             self.queue_status = "CONGESTION_WARNING" if self.queue_congestion_alert else "NORMAL"
 
-            # Smart Traffic Director Recommendation
-            if congested_lanes and free_lanes:
+            # Multi-Register Traffic Ranking & Smart Recommendation
+            sorted_lanes = sorted(self.queue_lanes, key=lambda l: l.get("headcount", 0))
+            least_crowded = sorted_lanes[0] if sorted_lanes else None
+
+            if congested_lanes and least_crowded and not least_crowded.get("congested", False):
                 c_name, c_cnt = congested_lanes[0]
-                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). Reroute incoming shoppers to {free_lanes[0]} (Free)."
+                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). Reroute incoming shoppers to {least_crowded.get('name', 'Alternative Counter')} ({least_crowded.get('headcount', 0)} queued, {least_crowded.get('est_wait_min', 0.0)}m wait)."
             elif congested_lanes:
                 c_name, c_cnt = congested_lanes[0]
-                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). Dispatch additional cashier immediately."
+                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). All {len(self.queue_lanes)} registers occupied. Open overflow register!"
             else:
-                self.smart_recommendation = "🟢 All checkout registers are flowing smoothly."
+                self.smart_recommendation = f"🟢 All {len(self.queue_lanes)} checkout registers are flowing smoothly."
 
     def _render_feed(self, frame: np.ndarray, detections: List[Dict[str, Any]], role: str, title: str) -> np.ndarray:
         out = frame.copy()

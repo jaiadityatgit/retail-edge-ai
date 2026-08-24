@@ -543,28 +543,57 @@
                 </button>
             </div>
 
-            <!-- Multi-Zone Target Selector Bar -->
-            <div class="flex flex-wrap gap-2 p-2 rounded-xl bg-surfaceInner border border-white/[0.04] text-xs font-mono" id="calib-zone-selector">
-                <button onclick="selectCalibZone('shelf_tier_1')" id="btn-zone-shelf_tier_1" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition">Tier 1 (Beverages)</button>
-                <button onclick="selectCalibZone('shelf_tier_2')" id="btn-zone-shelf_tier_2" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Tier 2 (Snacks)</button>
-                <button onclick="selectCalibZone('reg_1')" id="btn-zone-reg_1" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Counter 1 (General)</button>
-                <button onclick="selectCalibZone('reg_2')" id="btn-zone-reg_2" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Counter 2 (Express)</button>
+            <!-- Multi-Zone Target Selector Bar & Action Controls -->
+            <div class="space-y-2 p-3 rounded-xl bg-surfaceInner border border-white/[0.04] text-xs font-mono">
+                <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
+                    <span class="text-[11px] text-slate-400 font-bold uppercase tracking-wide">Configured Zones & Counters:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button onclick="addNewQueueLane()" class="px-2.5 py-1 rounded bg-amber-950/60 hover:bg-amber-900 border border-amber-600/70 text-amber-300 text-[11px] font-bold transition flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Counter Queue
+                        </button>
+                        <button onclick="addNewShelfTier()" class="px-2.5 py-1 rounded bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-600/70 text-cyan-300 text-[11px] font-bold transition flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Shelf Tier
+                        </button>
+                        <button onclick="deleteActiveZone()" id="btn-delete-zone" class="px-2.5 py-1 rounded bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-300 text-[11px] font-bold transition flex items-center gap-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete Zone
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Zone Selection Buttons Container -->
+                <div class="flex flex-wrap gap-2" id="calib-zone-selector">
+                    <!-- Populated dynamically via app.js -->
+                </div>
+
+                <!-- Active Zone Details Editor -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-white/[0.06] items-center">
+                    <div class="sm:col-span-2 flex items-center gap-2">
+                        <label class="text-[10px] text-slate-400 shrink-0">Zone Label:</label>
+                        <input id="calib-zone-name-input" type="text" placeholder="e.g. Counter 3 (UPI Only)" oninput="updateActiveZoneName(this.value)" class="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-white focus:outline-none focus:border-cyan-500 transition">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label id="calib-zone-param-label" class="text-[10px] text-slate-400 shrink-0">Threshold:</label>
+                        <input id="calib-zone-param-input" type="number" min="1" max="100" oninput="updateActiveZoneParam(this.value)" class="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-white focus:outline-none focus:border-cyan-500 transition">
+                    </div>
+                </div>
             </div>
 
             <!-- Canvas Interactive Viewport -->
-            <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+            <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 flex items-center justify-center shadow-inner">
                 <canvas id="roi-calibration-canvas" width="640" height="360" class="w-full h-full object-contain roi-interactive"></canvas>
             </div>
 
-            <!-- Coordinates & Presets Bar -->
+            <!-- Coordinates & Perspective Presets Bar -->
             <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-surfaceInner border border-white/[0.06] text-xs font-mono">
                 <div class="text-slate-300">
-                    <span>ROI: </span>
+                    <span>Coordinates: </span>
                     <span id="calib-coords-label" class="text-cyan-300 font-bold">[X1: 0.10, Y1: 0.20 &rarr; X2: 0.90, Y2: 0.85]</span>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="applyRoiPreset('DEFAULT')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Reset Default</button>
-                    <button onclick="applyRoiPreset('FULL')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Full Frame</button>
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="applyRoiPreset('LEFT_HALF')" class="px-2 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Left Col</button>
+                    <button onclick="applyRoiPreset('RIGHT_HALF')" class="px-2 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Right Col</button>
+                    <button onclick="applyRoiPreset('CENTER')" class="px-2 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Center</button>
+                    <button onclick="applyRoiPreset('FULL')" class="px-2 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Full Frame</button>
                 </div>
             </div>
 
@@ -575,7 +604,7 @@
                 </button>
                 <button onclick="saveCalibration()" class="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-obsidian font-bold text-xs transition shadow-lg flex items-center justify-center gap-1.5">
                     <i data-lucide="check" class="w-4 h-4"></i>
-                    <span>Save Calibration</span>
+                    <span>Save Planogram & Lanes</span>
                 </button>
             </div>
 
