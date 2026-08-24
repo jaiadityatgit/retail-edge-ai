@@ -875,21 +875,31 @@ async def serve_presentation():
 
 
 def gen_cam1_stream():
-    while True:
-        frame_bytes = engine.get_jpeg_cam1()
-        if frame_bytes is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.033)
+    try:
+        while True:
+            frame_bytes = engine.get_jpeg_cam1()
+            if frame_bytes is not None:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            time.sleep(0.033)
+    except GeneratorExit:
+        pass
+    except Exception:
+        pass
 
 
 def gen_cam2_stream():
-    while True:
-        frame_bytes = engine.get_jpeg_cam2()
-        if frame_bytes is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.033)
+    try:
+        while True:
+            frame_bytes = engine.get_jpeg_cam2()
+            if frame_bytes is not None:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            time.sleep(0.033)
+    except GeneratorExit:
+        pass
+    except Exception:
+        pass
 
 
 @app.get("/video_feed/cam1")
