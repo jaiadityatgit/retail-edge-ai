@@ -60,6 +60,68 @@ def get_local_ip() -> str:
         return "127.0.0.1"
 
 
+def ensure_ssl_certificates(ip_str: str = "127.0.0.1") -> Tuple[Optional[str], Optional[str]]:
+    """Generates self-signed TLS cert and key for HTTPS mobile camera streaming if needed."""
+    cert_file = "cert.pem"
+    key_file = "key.pem"
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        return cert_file, key_file
+
+    try:
+        import datetime, ipaddress
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.hazmat.primitives import serialization
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, u'RetailSense Edge Platform'),
+        ])
+        alt_names = [
+            x509.DNSName(u'localhost'),
+            x509.IPAddress(ipaddress.IPv4Address('127.0.0.1')),
+        ]
+        try:
+            alt_names.append(x509.IPAddress(ipaddress.IPv4Address(ip_str)))
+        except Exception:
+            pass
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cert = x509.CertificateBuilder().subject_name(
+            subject
+        ).issuer_name(
+            issuer
+        ).public_key(
+            key.public_key()
+        ).serial_number(
+            x509.random_serial_number()
+        ).not_valid_before(
+            now
+        ).not_valid_after(
+            now + datetime.timedelta(days=365)
+        ).add_extension(
+            x509.SubjectAlternativeName(alt_names),
+            critical=False,
+        ).sign(key, hashes.SHA256())
+
+        with open(key_file, 'wb') as f:
+            f.write(key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ))
+
+        with open(cert_file, 'wb') as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+        return cert_file, key_file
+    except Exception as e:
+        print(f"[SSL Setup Notice] Self-signed certificate generator note: {e}")
+        return None, None
+
+
 class HardwareProfiler:
     """Reads real-time SoC temperature, CPU/GPU utilization, and memory metrics."""
 
@@ -957,12 +1019,28 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     host = os.environ.get("HOST", "0.0.0.0")
     local_ip = get_local_ip()
+    use_ssl = "--ssl" in sys.argv or os.environ.get("SSL") == "1"
+
+    proto = "https" if use_ssl else "http"
     print("=" * 70)
     print("  RETAILSENSE OS // DUAL-CAMERA EDGE PLATFORM (SIH26179)")
     print("=" * 70)
-    print(f"  * Dashboard Console:     http://{local_ip}:{port}/")
-    print(f"  * Mobile Phone Ingest:   http://{local_ip}:{port}/mobile_cam")
-    print(f"  * Pitch Deck:            http://{local_ip}:{port}/presentation")
+    print(f"  * Mode:                  {proto.upper()} ({'SSL Enabled' if use_ssl else 'Standard HTTP'})")
+    print(f"  * Dashboard Console:     {proto}://{local_ip}:{port}/")
+    print(f"  * Mobile Phone Ingest:   {proto}://{local_ip}:{port}/mobile_cam")
+    print(f"  * Pitch Deck:            {proto}://{local_ip}:{port}/presentation")
     print(f"  * Device:                {DEVICE} (FP16: {USE_HALF})")
+    if not use_ssl:
+        print("\n  💡 TIP: For direct mobile Chrome camera access without flag configuration,")
+        print(f"     launch with SSL:  .\\.venv\\Scripts\\python.exe app.py --ssl")
     print("=" * 70)
-    uvicorn.run("app:app", host=host, port=port, reload=False, workers=1)
+
+    if use_ssl:
+        cert_file, key_file = ensure_ssl_certificates(local_ip)
+        if cert_file and key_file:
+            uvicorn.run("app:app", host=host, port=port, ssl_keyfile=key_file, ssl_certfile=cert_file, reload=False, workers=1)
+        else:
+            print("[SSL Error] Failed to generate SSL certificates. Falling back to HTTP.")
+            uvicorn.run("app:app", host=host, port=port, reload=False, workers=1)
+    else:
+        uvicorn.run("app:app", host=host, port=port, reload=False, workers=1)

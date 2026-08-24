@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>RetailSense Mobile — Edge Ingest Camera</title>
+    <title>RetailSense Mobile — Edge Camera Ingest</title>
     
     <!-- Google Fonts: Plus Jakarta Sans + JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,8 +23,9 @@
                         mono: ['"JetBrains Mono"', 'monospace'],
                     },
                     colors: {
-                        obsidian: '#090B10',
-                        card: '#121622',
+                        obsidian: '#080B11',
+                        card: '#111622',
+                        cardInner: '#0B0F18'
                     }
                 }
             }
@@ -36,7 +37,7 @@
 
     <style>
         body {
-            background-color: #090B10;
+            background-color: #080B11;
             color: #F8FAFC;
             touch-action: manipulation;
             -webkit-user-select: none;
@@ -57,7 +58,7 @@
             </div>
             <div>
                 <h1 class="text-xs font-bold uppercase tracking-wider text-white">RetailSense Mobile</h1>
-                <p class="text-[10px] text-slate-400 font-mono">Secondary Stream Ingest</p>
+                <p class="text-[10px] text-slate-400 font-mono">Camera 2 • Live Ingest</p>
             </div>
         </div>
 
@@ -67,12 +68,39 @@
         </div>
     </header>
 
+    <!-- HTTPS INSECURE CONTEXT WARNING BANNER (Shown only if browser blocks getUserMedia on HTTP) -->
+    <div id="https-warning-banner" class="hidden p-4 rounded-2xl bg-amber-950/90 border border-amber-500/80 text-xs font-sans space-y-2.5 shadow-xl">
+        <div class="flex items-start gap-2.5">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+            <div>
+                <h4 class="font-bold text-amber-200 text-xs">Chrome Blocks Camera on Unsecured HTTP</h4>
+                <p class="text-[11px] text-amber-300/90 mt-0.5 leading-relaxed">
+                    Modern mobile Chrome requires <strong>HTTPS</strong> to access camera hardware. Switch to the secure link below:
+                </p>
+            </div>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-2 pt-1">
+            <button onclick="switchToHttps()" class="flex-1 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian font-bold text-xs flex items-center justify-center gap-1.5 shadow">
+                <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                <span>Switch to Secure HTTPS Link</span>
+            </button>
+        </div>
+
+        <p class="text-[10px] text-amber-400/80 font-mono">
+            * Note: When Chrome shows "Connection is not private", tap <u>Advanced</u> &rarr; <u>Proceed to 192.168.0.7</u>.
+        </p>
+    </div>
+
     <!-- CENTER: VIDEO VIEWPORT -->
     <main class="my-auto space-y-3">
         <div class="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl flex items-center justify-center">
             
             <!-- Video preview element -->
             <video id="webcam-preview" autoplay playsinline muted class="w-full h-full object-cover"></video>
+
+            <!-- Snapshot Image Preview (for Fallback Photo Mode) -->
+            <img id="snapshot-preview" class="w-full h-full object-cover hidden" alt="Snapshot Preview" />
 
             <!-- Hidden canvas for binary JPEG extraction -->
             <canvas id="capture-canvas" width="640" height="360" class="hidden"></canvas>
@@ -91,12 +119,12 @@
             <!-- Permission / Fallback prompt -->
             <div id="permission-prompt" class="absolute inset-0 bg-obsidian/95 flex flex-col items-center justify-center p-6 text-center">
                 <i data-lucide="camera" class="w-10 h-10 text-cyan-400 mb-3 animate-bounce"></i>
-                <h3 class="text-sm font-bold text-white">Camera Access Required</h3>
-                <p class="text-xs text-slate-400 mt-1 max-w-xs">
-                    Allow camera access to stream your smartphone feed directly to the Edge Gateway.
+                <h3 class="text-sm font-bold text-white">Enable Camera Access</h3>
+                <p class="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+                    Tap below to stream live video directly to the Edge Gateway.
                 </p>
-                <button onclick="initCamera()" class="mt-4 px-5 py-2 rounded-full bg-cyan-500 text-obsidian font-bold text-xs shadow-lg active:scale-95 transition">
-                    Enable Camera
+                <button onclick="initCamera()" class="mt-4 px-6 py-2.5 rounded-full bg-cyan-500 text-obsidian font-bold text-xs shadow-lg active:scale-95 transition">
+                    Start Live Stream
                 </button>
             </div>
         </div>
@@ -105,39 +133,50 @@
         <div class="p-3.5 rounded-2xl bg-card border border-white/[0.06] text-xs font-mono space-y-1.5">
             <div class="flex justify-between text-slate-400">
                 <span>Protocol:</span>
-                <span class="text-cyan-400 font-bold">WebSocket Binary (JPEG Blob)</span>
+                <span class="text-cyan-400 font-bold">WebSocket Binary (JPEG Stream)</span>
             </div>
             <div class="flex justify-between text-slate-400">
-                <span>Transmission Target:</span>
-                <span id="target-ip" class="text-slate-200">ws://gateway/ws/mobile_upload</span>
+                <span>Target Gateway:</span>
+                <span id="target-ip" class="text-slate-200 truncate">ws://192.168.0.7:8000/ws/mobile_upload</span>
             </div>
             <div class="flex justify-between text-slate-400">
-                <span>Data Egress:</span>
-                <span class="text-emerald-400 font-bold">Local Wi-Fi Only (0 KB/s Cloud)</span>
+                <span>Cloud Bandwidth:</span>
+                <span class="text-emerald-400 font-bold">0.0 KB/s (Local Wi-Fi Only)</span>
             </div>
         </div>
     </main>
 
     <!-- BOTTOM CONTROLS -->
-    <footer class="space-y-2">
-        <button onclick="flipCamera()" class="w-full py-3.5 rounded-2xl bg-card hover:bg-slate-800 border border-white/10 font-bold text-xs text-slate-200 flex items-center justify-center gap-2 active:scale-98 transition shadow-lg">
-            <i data-lucide="refresh-cw" class="w-4 h-4 text-cyan-400"></i>
-            <span>Switch Camera (Front / Rear)</span>
-        </button>
+    <footer class="space-y-2.5">
+        <div class="grid grid-cols-2 gap-2">
+            <!-- Switch Camera Button -->
+            <button onclick="flipCamera()" class="py-3 px-3 rounded-2xl bg-card hover:bg-slate-800 border border-white/10 font-bold text-xs text-slate-200 flex items-center justify-center gap-1.5 active:scale-98 transition shadow-lg">
+                <i data-lucide="refresh-cw" class="w-4 h-4 text-cyan-400"></i>
+                <span>Flip Camera</span>
+            </button>
+
+            <!-- HTML5 Direct Snap Button (Universal Fallback) -->
+            <label class="py-3 px-3 rounded-2xl bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-600/60 font-bold text-xs text-indigo-200 flex items-center justify-center gap-1.5 active:scale-98 transition shadow-lg cursor-pointer">
+                <i data-lucide="camera" class="w-4 h-4 text-indigo-400"></i>
+                <span>Snap Frame</span>
+                <input type="file" id="camera-file-input" accept="image/*" capture="environment" class="hidden" onchange="handleFileCapture(event)" />
+            </label>
+        </div>
 
         <p class="text-[10px] text-center text-slate-500 font-mono">
-            RetailSense OS • Qualcomm® QCS6490 Ready
+            RetailSense OS • Qualcomm® QCS6490 / RPi 5
         </p>
     </footer>
 
-    <!-- JAVASCRIPT STREAMING LOGIC -->
+    <!-- JAVASCRIPT STREAMING ENGINE -->
     <script>
         lucide.createIcons();
 
         const video = document.getElementById('webcam-preview');
+        const snapPreview = document.getElementById('snapshot-preview');
         const canvas = document.getElementById('capture-canvas');
         const ctx = canvas.getContext('2d');
-        let currentFacingMode = "environment"; // Rear camera by default
+        let currentFacingMode = "environment"; // Rear camera
         let ws = null;
         let stream = null;
         let isStreaming = false;
@@ -145,13 +184,24 @@
         let frameCount = 0;
         let lastFpsTime = performance.now();
 
-        document.getElementById('target-ip').innerText = `ws://${window.location.host}/ws/mobile_upload`;
+        // Check if context is secure
+        const isSecure = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        if (!isSecure && window.location.protocol === 'http:') {
+            document.getElementById('https-warning-banner').classList.remove('hidden');
+        }
+
+        function switchToHttps() {
+            window.location.href = `https://${window.location.hostname}:${window.location.port || '8000'}/mobile_cam`;
+        }
+
+        // Setup WebSocket Target Label
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/mobile_upload`;
+        document.getElementById('target-ip').innerText = wsUrl;
 
         // 1. Initialize WebSocket Connection
         function connectWebSocket() {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/mobile_upload`;
-            
             ws = new WebSocket(wsUrl);
             ws.binaryType = 'arraybuffer';
 
@@ -159,7 +209,7 @@
                 console.log('[WebSocket] Connected to Edge Gateway');
                 const pill = document.getElementById('ws-status-pill');
                 pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60';
-                document.getElementById('ws-status-text').innerText = 'TRANSMITTING';
+                document.getElementById('ws-status-text').innerText = 'LIVE STREAMING';
                 startStreamingFrames();
             };
 
@@ -177,14 +227,26 @@
             };
         }
 
-        // 2. Initialize Camera Stream
+        // 2. Cross-Browser MediaDevices Resolver
+        function getSafeUserMedia(constraints) {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                return navigator.mediaDevices.getUserMedia(constraints);
+            }
+            const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+            if (legacy) {
+                return new Promise((resolve, reject) => legacy.call(navigator, constraints, resolve, reject));
+            }
+            return Promise.reject(new Error("navigator.mediaDevices is undefined. Browser requires HTTPS or Secure Context flag."));
+        }
+
+        // 3. Initialize Camera Stream
         async function initCamera() {
             try {
                 if (stream) {
                     stream.getTracks().forEach(t => t.stop());
                 }
 
-                stream = await navigator.mediaDevices.getUserMedia({
+                stream = await getSafeUserMedia({
                     video: {
                         facingMode: currentFacingMode,
                         width: { ideal: 640 },
@@ -197,6 +259,9 @@
                 video.onloadedmetadata = () => {
                     video.play();
                     document.getElementById('permission-prompt').classList.add('hidden');
+                    snapPreview.classList.add('hidden');
+                    video.classList.remove('hidden');
+
                     if (!ws || ws.readyState !== WebSocket.OPEN) {
                         connectWebSocket();
                     } else {
@@ -204,12 +269,16 @@
                     }
                 };
             } catch (err) {
-                console.error('[Camera Error]', err);
-                alert('Could not access camera: ' + err.message);
+                console.warn('[Camera Access Warning]', err);
+                // If on HTTP, suggest HTTPS
+                if (window.location.protocol === 'http:') {
+                    document.getElementById('https-warning-banner').classList.remove('hidden');
+                }
+                alert('Camera Access Notice:\n\n' + err.message + '\n\nIf using Chrome on Android/iOS, switch to HTTPS mode or use the "Snap Frame" button below.');
             }
         }
 
-        // 3. Binary Frame Transmission Loop
+        // 4. Binary Frame Transmission Loop (20 FPS)
         function startStreamingFrames() {
             if (isStreaming) return;
             isStreaming = true;
@@ -246,14 +315,44 @@
             sendFrame();
         }
 
-        // 4. Flip Camera
+        // 5. Fallback: Direct HTML5 Snapshot / Photo Capture
+        function handleFileCapture(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    snapPreview.src = e.target.result;
+                    snapPreview.classList.remove('hidden');
+                    video.classList.add('hidden');
+                    document.getElementById('permission-prompt').classList.add('hidden');
+
+                    canvas.toBlob((blob) => {
+                        if (blob && ws && ws.readyState === WebSocket.OPEN) {
+                            blob.arrayBuffer().then(buffer => {
+                                ws.send(buffer);
+                                alert('✅ Frame transmitted to Edge Gateway!');
+                            });
+                        }
+                    }, 'image/jpeg', 0.75);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 6. Flip Camera
         function flipCamera() {
             currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
             initCamera();
         }
 
-        // Auto-start camera on load
+        // Auto-attempt start on load
         window.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
             initCamera();
         });
     </script>
