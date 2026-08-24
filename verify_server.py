@@ -134,6 +134,12 @@ def run_tests():
         assert res_root.status_code == 200
         assert "EdgeRetail AI" in res_root.text
 
+        # GET /presentation (Apple Keynote Slide Deck HTML)
+        res_pres = client.get("/presentation")
+        print(f"  -> GET /presentation -> Status {res_pres.status_code}")
+        assert res_pres.status_code == 200
+        assert "Executive Presentation Deck" in res_pres.text
+
         # GET /health
         res_health = client.get("/health")
         print(f"  -> GET /health -> Status {res_health.status_code}")

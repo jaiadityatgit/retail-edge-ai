@@ -848,6 +848,15 @@ async def serve_dashboard():
     return HTMLResponse("<h2>Dashboard initializing. static/index.html not found.</h2>")
 
 
+@app.get("/presentation", response_class=HTMLResponse)
+async def serve_presentation():
+    """Serves the Apple Keynote / Linear-style interactive pitch deck."""
+    pres_path = STATIC_DIR / "presentation.html"
+    if pres_path.exists():
+        return FileResponse(str(pres_path))
+    return HTMLResponse("<h2>Presentation slide deck initializing. static/presentation.html not found.</h2>")
+
+
 def gen_mjpeg_stream():
     """Generates MJPEG multipart frame stream."""
     while True:
