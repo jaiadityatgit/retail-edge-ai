@@ -139,8 +139,12 @@
                             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                             ALL SYSTEMS OPTIMAL
                         </div>
+                        <div id="npu-status-pill" class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 shadow-sm">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-indigo-400"></i>
+                            <span id="npu-status-text">⚡ NPU / Hardware Engine</span>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-400 font-normal mt-0.5">Dual-Stream Autonomous Edge Vision, SQLite Shift Analytics & Spatial CSIM</p>
+                    <p class="text-xs text-slate-400 font-normal mt-0.5">Multi-Shelf Planograms, Multi-Register Traffic Matrix & On-Device NPU Acceleration</p>
                 </div>
             </div>
 
@@ -185,7 +189,7 @@
         <!-- B. EXECUTIVE TOP ROW: ACTIONABLE RETAIL KPI CARDS -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            <!-- 1. Shelf Stock Health Card -->
+            <!-- 1. Multi-Shelf Planogram Matrix Card -->
             <div id="shelf-kpi-card" class="ops-kpi-card p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -193,42 +197,28 @@
                             <i data-lucide="package" class="w-5 h-5"></i>
                         </div>
                         <div>
-                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Shelf Stock Health</h2>
-                            <p class="text-[11px] text-slate-400">Beverages & FMCG Shelf Zone</p>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Multi-Shelf Planograms</h2>
+                            <p class="text-[11px] text-slate-400">Beverages & Packaged Goods Sections</p>
                         </div>
                     </div>
                     <span id="shelf-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
-                        🟢 Fully Stocked & Optimal
+                        🟢 Inventory Healthy
                     </span>
                 </div>
 
-                <div class="flex items-baseline justify-between pt-1">
-                    <div class="flex items-baseline gap-2">
-                        <span id="shelf-stock-number" class="text-4xl font-extrabold font-mono text-white tabular-nums">5</span>
-                        <span id="shelf-capacity-label" class="text-sm font-mono text-slate-400">/ 5 Items (100%)</span>
-                    </div>
-                    <span class="text-xs font-mono text-slate-400">CSIM Occlusion Guard: <strong class="text-emerald-400">Active</strong></span>
-                </div>
-
-                <!-- 5-Cell Visual Capacity Progress Meter -->
-                <div class="space-y-1.5">
-                    <div class="grid grid-cols-5 gap-1.5" id="shelf-capacity-cells">
-                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                    </div>
+                <!-- Dynamic Multi-Tier Shelf Sections Grid -->
+                <div id="multi-shelf-sections-container" class="space-y-2.5">
+                    <!-- Populated dynamically via app.js -->
                 </div>
 
                 <!-- Live Transactional Delta Badge -->
                 <div class="pt-2 border-t border-white/[0.04] flex items-center justify-between text-xs font-mono">
                     <span class="text-slate-400 text-[11px]">Latest Inventory Action:</span>
-                    <span id="shelf-last-transaction" class="font-bold text-emerald-300 text-[11px] truncate">🟢 Initial Stock Synchronized (5/5)</span>
+                    <span id="shelf-last-transaction" class="font-bold text-emerald-300 text-[11px] truncate">🟢 Initial Stock Synchronized</span>
                 </div>
             </div>
 
-            <!-- 2. Checkout Queue Operations Card -->
+            <!-- 2. Multi-Register Queue Operations Card -->
             <div id="queue-kpi-card" class="ops-kpi-card p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -236,8 +226,8 @@
                             <i data-lucide="users" class="w-5 h-5"></i>
                         </div>
                         <div>
-                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Checkout Queue Operations</h2>
-                            <p class="text-[11px] text-slate-400">Register 1 Line & Bottleneck Estimator</p>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Multi-Register Checkout Traffic</h2>
+                            <p class="text-[11px] text-slate-400">Dual POS Counters & Smart Traffic Director</p>
                         </div>
                     </div>
                     <span id="queue-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
@@ -245,28 +235,15 @@
                     </span>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 pt-1">
-                    <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.04]">
-                        <span class="text-[10px] font-mono text-slate-400 uppercase">Headcount in Queue</span>
-                        <div class="flex items-baseline gap-1.5 mt-1">
-                            <span id="queue-headcount-number" class="text-3xl font-extrabold font-mono text-white tabular-nums">0</span>
-                            <span class="text-xs text-slate-400 font-mono">shoppers</span>
-                        </div>
-                    </div>
-
-                    <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.04]">
-                        <span class="text-[10px] font-mono text-slate-400 uppercase">Estimated Wait Time</span>
-                        <div class="flex items-baseline gap-1.5 mt-1">
-                            <span id="queue-wait-number" class="text-3xl font-extrabold font-mono text-cyan-300 tabular-nums">0.0</span>
-                            <span class="text-xs text-slate-400 font-mono">minutes</span>
-                        </div>
-                    </div>
+                <!-- Dynamic Multi-Register Grid -->
+                <div id="multi-queue-lanes-container" class="grid grid-cols-2 gap-3 pt-1">
+                    <!-- Populated dynamically via app.js -->
                 </div>
 
-                <!-- Congestion Dispatch Alert Banner -->
-                <div id="queue-dispatch-banner" class="hidden p-3 rounded-xl bg-red-950/80 border border-red-800 text-xs font-mono text-red-200 flex items-center gap-2.5 animate-pulse">
-                    <i data-lucide="bell-ring" class="w-4 h-4 text-red-400 shrink-0"></i>
-                    <span class="font-bold">CONGESTION DETECTED: Dispatch Cashier & Open Register 2 Immediately</span>
+                <!-- Smart Traffic Director Recommendation Banner -->
+                <div id="smart-traffic-banner" class="p-3 rounded-xl bg-cyan-950/70 border border-cyan-700/60 text-xs font-mono text-cyan-200 flex items-center gap-2.5 shadow-sm">
+                    <i data-lucide="compass" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+                    <span id="smart-traffic-text" class="font-bold">🟢 All checkout registers are flowing smoothly.</span>
                 </div>
             </div>
 
@@ -550,14 +527,22 @@
                     </div>
                     <div>
                         <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            Interactive Zone Calibrator <span id="calib-zone-tag" class="text-xs font-mono text-cyan-300 font-normal">// SHELF ZONE</span>
+                            Interactive Planogram Calibrator <span id="calib-zone-tag" class="text-xs font-mono text-cyan-300 font-normal">// TIER 1 BEVERAGES</span>
                         </h3>
-                        <p class="text-xs text-slate-400">Drag corner handles to adjust the spatial detection boundaries</p>
+                        <p class="text-xs text-slate-400">Drag corner handles to adjust multi-tier shelves and register lane boundaries</p>
                     </div>
                 </div>
                 <button onclick="closeCalibrationModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
+            </div>
+
+            <!-- Multi-Zone Target Selector Bar -->
+            <div class="flex flex-wrap gap-2 p-2 rounded-xl bg-surfaceInner border border-white/[0.04] text-xs font-mono" id="calib-zone-selector">
+                <button onclick="selectCalibZone('shelf_tier_1')" id="btn-zone-shelf_tier_1" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition">Tier 1 (Beverages)</button>
+                <button onclick="selectCalibZone('shelf_tier_2')" id="btn-zone-shelf_tier_2" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Tier 2 (Snacks)</button>
+                <button onclick="selectCalibZone('reg_1')" id="btn-zone-reg_1" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Counter 1 (General)</button>
+                <button onclick="selectCalibZone('reg_2')" id="btn-zone-reg_2" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition">Counter 2 (Express)</button>
             </div>
 
             <!-- Canvas Interactive Viewport -->

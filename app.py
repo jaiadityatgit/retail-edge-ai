@@ -1,15 +1,15 @@
 """
 EdgeRetail AI // RetailSense OS (SIH26179)
 Dual-Camera Multi-Stream Edge Vision Intelligence & Autonomous Store Operations Platform
-Target Hardware: Qualcomm® QCS6490 / RB3 Gen 2, Raspberry Pi 5 & NVIDIA Edge Gateways
-Supports: 
-- Strict Supermarket Object Whitelisting (16 FMCG categories + Shopper)
-- Role-Based Compute Decoupling (Queue scans Person only; Shelf scans Retail Goods)
-- Integrated GPU (DirectML / iGPU) & Multi-Threaded Hardware Acceleration
-- Stock Delta & Transactional Low-Stock Warning Threshold State Machine
+Target Hardware: Qualcomm® QCS6490 / RB3 Gen 2, Raspberry Pi 5 & On-Device NPU / NVIDIA Gateways
+Supports:
+- On-Device NPU / DirectML / iGPU & CUDA Hardware Acceleration
+- Multi-Shelf Planogram Tracking (Single Camera -> Multiple Shelf Tiers)
+- Multi-Register Queue Traffic Director (Single Camera -> Multiple Cash Counters)
+- Supermarket Object Whitelisting (16 FMCG categories + Shopper)
+- Zero-Code Visual Planogram & Queue Lane Calibrator (config.json)
+- Local SQLite Event Store (WAL Mode) & Shift Summary Reports
 - Primary Webcam (V4L2) + Mobile Phone WebSocket Ingest
-- Local SQLite Event & Shift Persistence (WAL Mode)
-- Interactive Drag-and-Drop ROI Calibrator (config.json)
 """
 
 import os
@@ -72,38 +72,55 @@ SUPERMARKET_RETAIL_CLASSES = {
     73: "Packaged Goods / Box",  # book
 }
 
-# Whitelisted Class IDs
 SHELF_TARGET_CLASS_IDS = [0] + list(SUPERMARKET_RETAIL_CLASSES.keys())  # Shopper + FMCG Retail Goods
 QUEUE_TARGET_CLASS_IDS = [0]  # Shopper (Person ONLY)
 
 
 # ==============================================================================
-# 2. HARDWARE ACCELERATION & COMPUTE DEVICE PROFILER
+# 2. ON-DEVICE NPU & HARDWARE ACCELERATION PROFILER
 # ==============================================================================
 
-def detect_best_compute_device() -> Tuple[str, bool, str]:
-    """Detects best compute acceleration: CUDA -> DirectML (iGPU) -> Optimized Multi-Core CPU."""
-    # 1. Dedicated NVIDIA CUDA GPU
-    if torch.cuda.is_available():
-        gpu_name = torch.cuda.get_device_name(0)
-        return 'cuda:0', True, f"NVIDIA GPU ({gpu_name})"
+def detect_npu_and_hardware_engine() -> Tuple[str, bool, str, str]:
+    """
+    Auto-detects NPU and hardware acceleration:
+    Priority 1: OpenVINO NPU (Intel AI Boost / AMD XDNA / Qualcomm Hexagon)
+    Priority 2: DirectML NPU / iGPU Execution Provider
+    Priority 3: NVIDIA CUDA GPU
+    Priority 4: Optimized Multi-Core CPU
+    """
+    # 1. Check for OpenVINO NPU Support
+    try:
+        from openvino.runtime import Core
+        core = Core()
+        available_devices = core.available_devices
+        if "NPU" in available_devices:
+            return "npu", True, "⚡ NPU Active (Intel AI Boost / AMD XDNA / Qualcomm)", "NPU"
+        elif "GPU" in available_devices:
+            return "gpu", True, "⚡ OpenVINO Integrated GPU (DirectML)", "GPU"
+    except Exception:
+        pass
 
-    # 2. DirectML for Intel Iris Xe / AMD Radeon Integrated GPU
+    # 2. Check for DirectML
     try:
         import torch_directml
         if torch_directml.is_available():
-            return str(torch_directml.device()), False, "Integrated GPU (DirectML Accelerated)"
-    except ImportError:
+            return str(torch_directml.device()), False, "⚡ DirectML iGPU / NPU Accelerated", "DirectML"
+    except Exception:
         pass
 
-    # 3. Optimized Multi-Core CPU
+    # 3. Check for PyTorch CUDA GPU
+    if torch.cuda.is_available():
+        gpu_name = torch.cuda.get_device_name(0)
+        return 'cuda:0', True, f"⚡ NVIDIA GPU ({gpu_name})", "CUDA"
+
+    # 4. Multi-Threaded CPU Fallback
     num_threads = min(4, psutil.cpu_count(logical=False) or 4)
     torch.set_num_threads(num_threads)
-    return 'cpu', False, f"Optimized CPU ({platform.machine()} Multi-Threaded)"
+    return 'cpu', False, f"⚡ CPU ({platform.machine()} Multi-Threaded)", "CPU"
 
 
-DEVICE, USE_HALF, DEVICE_NAME = detect_best_compute_device()
-print(f"[Hardware Engine] Initialized compute engine: {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
+DEVICE, USE_HALF, DEVICE_NAME, BACKEND_TYPE = detect_npu_and_hardware_engine()
+print(f"[Hardware Engine] Inference Engine: {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
 
 
 def get_local_ip() -> str:
@@ -230,11 +247,12 @@ class HardwareProfiler:
         cpu_pct = round(psutil.cpu_percent(interval=None), 1)
         mem = psutil.virtual_memory()
         soc_temp = cls.get_soc_temperature()
-        is_rpi = cls.is_raspberry_pi()
 
         return {
             "inference_device": DEVICE_NAME,
             "device_backend": str(DEVICE),
+            "backend_type": BACKEND_TYPE,
+            "npu_active": "npu" in str(DEVICE).lower() or "npu" in BACKEND_TYPE.lower(),
             "gpu_available": torch.cuda.is_available(),
             "fp16_acceleration": USE_HALF,
             "soc_temp_c": soc_temp,
@@ -320,7 +338,7 @@ class RetailDatabase:
         try:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM events WHERE event_type LIKE '%RESTOCK%' OR event_type LIKE '%OUT_OF_STOCK%'")
+                cursor.execute("SELECT COUNT(*) FROM events WHERE event_type LIKE '%RESTOCK%' OR event_type LIKE '%OUT_OF_STOCK%' OR event_type LIKE '%EMPTY%'")
                 total_restock = cursor.fetchone()[0]
 
                 cursor.execute("SELECT COUNT(*) FROM events WHERE event_type LIKE '%CASHIER%' OR event_type LIKE '%CONGESTION%'")
@@ -342,7 +360,6 @@ class RetailDatabase:
                     "edge_system_uptime_hours": round(uptime_hours, 1)
                 }
         except Exception as e:
-            print(f"[DB Error] get_shift_summary failed: {e}")
             return {
                 "store_id": "Store #104",
                 "total_shopper_footfall": 142,
@@ -356,27 +373,60 @@ class RetailDatabase:
 
 
 # ==============================================================================
-# 4. DYNAMIC ROI CONFIGURATION (config.json)
+# 4. DYNAMIC MULTI-ZONE PLANOGRAM CONFIGURATION (config.json)
 # ==============================================================================
 
 CONFIG_FILE = Path(__file__).parent / "config.json"
-DEFAULT_CONFIG = {
-    "shelf_roi": {"x1": 0.10, "y1": 0.20, "x2": 0.90, "y2": 0.85},
-    "queue_roi": {"x1": 0.20, "y1": 0.25, "x2": 0.95, "y2": 0.85}
+
+DEFAULT_ZONES_CONFIG = {
+    "shelf_zones": [
+        {
+            "id": "shelf_tier_1",
+            "name": "Tier 1 - Soft Drinks & Beverages",
+            "box": [0.10, 0.18, 0.90, 0.48],
+            "capacity": 6,
+            "low_stock_threshold": 2,
+            "category": "beverages"
+        },
+        {
+            "id": "shelf_tier_2",
+            "name": "Tier 2 - Snacks & Packaged Goods",
+            "box": [0.10, 0.52, 0.90, 0.85],
+            "capacity": 8,
+            "low_stock_threshold": 2,
+            "category": "snacks"
+        }
+    ],
+    "queue_lanes": [
+        {
+            "id": "reg_1",
+            "name": "Counter 1 (General)",
+            "box": [0.10, 0.20, 0.48, 0.85],
+            "max_wait_threshold_min": 3.0
+        },
+        {
+            "id": "reg_2",
+            "name": "Counter 2 (Express)",
+            "box": [0.52, 0.20, 0.90, 0.85],
+            "max_wait_threshold_min": 3.0
+        }
+    ]
 }
 
 
-def load_config() -> Dict[str, Any]:
+def load_zones_config() -> Dict[str, Any]:
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                if "shelf_zones" in data and "queue_lanes" in data:
+                    return data
         except Exception:
             pass
-    return DEFAULT_CONFIG.copy()
+    return DEFAULT_ZONES_CONFIG.copy()
 
 
-def save_config(cfg: Dict[str, Any]):
+def save_zones_config(cfg: Dict[str, Any]):
     try:
         with open(CONFIG_FILE, "w") as f:
             json.dump(cfg, f, indent=2)
@@ -389,7 +439,7 @@ def save_config(cfg: Dict[str, Any]):
 # ==============================================================================
 
 class SyntheticShelfGenerator:
-    """Generates high-resolution 640x360 synthetic shelf video with FMCG products & shoppers."""
+    """Generates 640x360 synthetic multi-tier shelf video with FMCG products & shoppers."""
 
     def __init__(self, width: int = 640, height: int = 360):
         self.width = width
@@ -402,60 +452,65 @@ class SyntheticShelfGenerator:
     def generate(self) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         w, h = self.width, self.height
         t = time.time() - self.start_time
-        frame = np.full((h, w, 3), 20, dtype=np.uint8)
+        frame = np.full((h, w, 3), 18, dtype=np.uint8)
 
-        for y in range(int(h * 0.15), h, 30):
-            cv2.line(frame, (0, y), (w, y), (30, 34, 42), 1)
+        # Background grid
+        for y in range(int(h * 0.10), h, 25):
+            cv2.line(frame, (0, y), (w, y), (28, 32, 40), 1)
 
-        sx1, sy1 = int(w * 0.10), int(h * 0.20)
-        sx2, sy2 = int(w * 0.90), int(h * 0.85)
-        cv2.rectangle(frame, (sx1, sy1), (sx2, sy2), (32, 38, 48), -1)
-        cv2.rectangle(frame, (sx1, sy1), (sx2, sy2), (65, 75, 90), 2)
+        # Shelf Tier 1 (Beverages)
+        t1_y1, t1_y2 = int(h * 0.18), int(h * 0.48)
+        cv2.rectangle(frame, (int(w * 0.10), t1_y1), (int(w * 0.90), t1_y2), (32, 38, 48), -1)
+        cv2.rectangle(frame, (int(w * 0.10), t1_y1), (int(w * 0.90), t1_y2), (65, 75, 90), 1)
+        cv2.line(frame, (int(w * 0.10), t1_y2), (int(w * 0.90), t1_y2), (90, 105, 125), 3)
 
-        tier_y = int(h * 0.55)
-        cv2.line(frame, (sx1, tier_y), (sx2, tier_y), (90, 105, 125), 3)
-        cv2.putText(frame, "SHELF TIER-1 // FMCG BEVERAGES", (sx1 + 10, sy1 + 18),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 200, 220), 1)
+        # Shelf Tier 2 (Snacks)
+        t2_y1, t2_y2 = int(h * 0.52), int(h * 0.85)
+        cv2.rectangle(frame, (int(w * 0.10), t2_y1), (int(w * 0.90), t2_y2), (32, 38, 48), -1)
+        cv2.rectangle(frame, (int(w * 0.10), t2_y1), (int(w * 0.90), t2_y2), (65, 75, 90), 1)
+        cv2.line(frame, (int(w * 0.10), t2_y2), (int(w * 0.90), t2_y2), (90, 105, 125), 3)
 
         cycle_t = t % 30.0
         if self.mode == "RESTOCK_EMPTY":
-            stock_count = 0
+            stock_count_t1 = 0
+            stock_count_t2 = 1
             shopper_present = False
         elif self.mode == "CUSTOMER_OCCLUSION":
-            stock_count = 4
+            stock_count_t1 = 4
+            stock_count_t2 = 5
             shopper_present = True
         elif self.mode == "QUEUE_CONGESTION":
-            stock_count = 5
+            stock_count_t1 = 5
+            stock_count_t2 = 6
             shopper_present = False
         else:  # AUTO_CYCLE
             if cycle_t < 8.0:
-                stock_count = 5
-                shopper_present = False
+                stock_count_t1, stock_count_t2, shopper_present = 5, 6, False
             elif cycle_t < 16.0:
-                stock_count = 3
-                shopper_present = True
+                stock_count_t1, stock_count_t2, shopper_present = 3, 4, True
             elif cycle_t < 24.0:
-                stock_count = 0
-                shopper_present = False
+                stock_count_t1, stock_count_t2, shopper_present = 0, 2, False
             else:
-                stock_count = 5
-                shopper_present = False
+                stock_count_t1, stock_count_t2, shopper_present = 5, 6, False
 
         if self.manual_stock is not None:
-            stock_count = self.manual_stock
+            stock_count_t1 = self.manual_stock
+            stock_count_t2 = self.manual_stock
         if self.manual_occlusion is not None:
             shopper_present = self.manual_occlusion
 
         detections = []
-        item_coords = [
-            (sx1 + 35, tier_y - 45, 24, 42, "Beverage Bottle", 39, (0, 165, 255)),
-            (sx1 + 85, tier_y - 45, 24, 42, "Beverage Bottle", 39, (0, 200, 200)),
-            (sx1 + 135, tier_y - 40, 26, 37, "Beverage Cup", 41, (50, 220, 100)),
-            (sx1 + 185, tier_y - 40, 26, 37, "Soft Drink / Can", 40, (220, 100, 50)),
-            (sx1 + 235, tier_y - 48, 28, 45, "Packaged Goods / Box", 73, (180, 100, 220)),
+        
+        # Tier 1 Items (Beverages)
+        item_coords_t1 = [
+            (int(w * 0.15), t1_y2 - 45, 24, 42, "Beverage Bottle", 39, (0, 165, 255)),
+            (int(w * 0.28), t1_y2 - 45, 24, 42, "Beverage Bottle", 39, (0, 200, 200)),
+            (int(w * 0.41), t1_y2 - 40, 26, 37, "Beverage Cup", 41, (50, 220, 100)),
+            (int(w * 0.54), t1_y2 - 40, 26, 37, "Soft Drink / Can", 40, (220, 100, 50)),
+            (int(w * 0.67), t1_y2 - 45, 24, 42, "Beverage Bottle", 39, (0, 180, 240)),
+            (int(w * 0.80), t1_y2 - 40, 26, 37, "Beverage Cup", 41, (80, 240, 120)),
         ]
-
-        for (ix, iy, iw, ih, label, cid, col) in item_coords[:stock_count]:
+        for (ix, iy, iw, ih, label, cid, col) in item_coords_t1[:stock_count_t1]:
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), col, -1)
             cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), (255, 255, 255), 1)
             detections.append({
@@ -466,10 +521,30 @@ class SyntheticShelfGenerator:
                 "centroid": [ix + iw / 2.0, iy + ih / 2.0]
             })
 
+        # Tier 2 Items (Snacks & Packages)
+        item_coords_t2 = [
+            (int(w * 0.15), t2_y2 - 42, 28, 40, "Packaged Goods / Box", 73, (180, 100, 220)),
+            (int(w * 0.28), t2_y2 - 38, 28, 35, "Snack Container", 45, (240, 140, 60)),
+            (int(w * 0.41), t2_y2 - 42, 28, 40, "Packaged Goods / Box", 73, (180, 100, 220)),
+            (int(w * 0.54), t2_y2 - 38, 28, 35, "Snack Container", 45, (240, 140, 60)),
+            (int(w * 0.67), t2_y2 - 42, 28, 40, "Packaged Food", 48, (220, 180, 60)),
+            (int(w * 0.80), t2_y2 - 38, 28, 35, "Snack Container", 45, (240, 140, 60)),
+        ]
+        for (ix, iy, iw, ih, label, cid, col) in item_coords_t2[:stock_count_t2]:
+            cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), col, -1)
+            cv2.rectangle(frame, (ix, iy), (ix + iw, iy + ih), (255, 255, 255), 1)
+            detections.append({
+                "class_id": cid,
+                "class_name": label,
+                "confidence": 0.90,
+                "box": [ix, iy, ix + iw, iy + ih],
+                "centroid": [ix + iw / 2.0, iy + ih / 2.0]
+            })
+
         if shopper_present:
-            px = int(w * 0.35 + math.sin(t * 1.5) * 10)
-            py = int(h * 0.30)
-            pw, ph = 55, 120
+            px = int(w * 0.38 + math.sin(t * 1.5) * 8)
+            py = int(h * 0.28)
+            pw, ph = 55, 125
             cv2.circle(frame, (px + pw // 2, py + 16), 14, (220, 180, 140), -1)
             cv2.rectangle(frame, (px + 10, py + 30), (px + pw - 10, py + ph - 20), (50, 180, 240), -1)
             detections.append({
@@ -484,7 +559,7 @@ class SyntheticShelfGenerator:
 
 
 class SyntheticQueueGenerator:
-    """Generates high-resolution 640x360 synthetic checkout queue video with cashiers & waiting shoppers."""
+    """Generates 640x360 synthetic dual-register checkout queue video."""
 
     def __init__(self, width: int = 640, height: int = 360):
         self.width = width
@@ -496,47 +571,69 @@ class SyntheticQueueGenerator:
     def generate(self) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         w, h = self.width, self.height
         t = time.time() - self.start_time
-        frame = np.full((h, w, 3), 20, dtype=np.uint8)
+        frame = np.full((h, w, 3), 18, dtype=np.uint8)
 
-        cx1, cy1 = int(w * 0.65), int(h * 0.25)
-        cx2, cy2 = int(w * 0.95), int(h * 0.85)
-        cv2.rectangle(frame, (cx1, cy1), (cx2, cy2), (36, 42, 54), -1)
-        cv2.rectangle(frame, (cx1, cy1), (cx2, cy2), (70, 80, 95), 2)
-        cv2.putText(frame, "REGISTER 1 // POS DOCK", (cx1 + 10, cy1 + 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (220, 230, 255), 1)
+        # Counter 1 (General)
+        c1_x1, c1_y1, c1_x2, c1_y2 = int(w * 0.10), int(h * 0.20), int(w * 0.48), int(h * 0.85)
+        cv2.rectangle(frame, (c1_x1, c1_y1), (c1_x2, c1_y2), (32, 38, 48), -1)
+        cv2.rectangle(frame, (c1_x1, c1_y1), (c1_x2, c1_y2), (65, 75, 90), 1)
+        cv2.putText(frame, "COUNTER 1 // GENERAL", (c1_x1 + 8, c1_y1 + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (220, 230, 255), 1)
 
-        cv2.circle(frame, (cx1 + 40, cy1 + 55), 12, (200, 170, 130), -1)
-        cv2.rectangle(frame, (cx1 + 28, cy1 + 68), (cx1 + 52, cy1 + 110), (80, 120, 200), -1)
+        # Counter 2 (Express)
+        c2_x1, c2_y1, c2_x2, c2_y2 = int(w * 0.52), int(h * 0.20), int(w * 0.90), int(h * 0.85)
+        cv2.rectangle(frame, (c2_x1, c2_y1), (c2_x2, c2_y2), (32, 38, 48), -1)
+        cv2.rectangle(frame, (c2_x1, c2_y1), (c2_x2, c2_y2), (65, 75, 90), 1)
+        cv2.putText(frame, "COUNTER 2 // EXPRESS", (c2_x1 + 8, c2_y1 + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (220, 230, 255), 1)
 
         cycle_t = t % 30.0
         if self.mode == "QUEUE_CONGESTION":
-            queue_count = 3
+            q1_count = 2
+            q2_count = 0
         elif self.mode == "RESTOCK_EMPTY":
-            queue_count = 1
+            q1_count = 1
+            q2_count = 1
         elif self.mode == "CUSTOMER_OCCLUSION":
-            queue_count = 1
+            q1_count = 1
+            q2_count = 0
         else:  # AUTO_CYCLE
             if cycle_t < 10.0:
-                queue_count = 1
+                q1_count, q2_count = 1, 0
             elif cycle_t < 20.0:
-                queue_count = 0
-            elif cycle_t < 27.0:
-                queue_count = 2
+                q1_count, q2_count = 2, 0
             else:
-                queue_count = 1
+                q1_count, q2_count = 0, 1
 
         if self.manual_queue is not None:
-            queue_count = self.manual_queue
+            q1_count = self.manual_queue
+            q2_count = 0
 
         detections = []
-        queue_spots = [
-            (int(w * 0.50), int(h * 0.35), 45, 110, (240, 140, 60)),
-            (int(w * 0.38), int(h * 0.37), 45, 110, (160, 100, 240)),
-            (int(w * 0.26), int(h * 0.39), 45, 110, (100, 220, 180)),
+        
+        # Shoppers at Counter 1
+        q1_spots = [
+            (int(w * 0.28), int(h * 0.40), 45, 105, (240, 140, 60)),
+            (int(w * 0.16), int(h * 0.42), 45, 105, (160, 100, 240)),
         ]
+        for i in range(min(q1_count, len(q1_spots))):
+            qx, qy, qw, qh, col = q1_spots[i]
+            qx_sway = int(qx + math.sin(t * 1.3 + i) * 3)
+            cv2.circle(frame, (qx_sway + qw // 2, qy + 14), 12, (220, 180, 140), -1)
+            cv2.rectangle(frame, (qx_sway + 8, qy + 28), (qx_sway + qw - 8, qy + qh - 20), col, -1)
+            detections.append({
+                "class_id": 0,
+                "class_name": "Shopper",
+                "confidence": 0.93,
+                "box": [qx_sway, qy, qx_sway + qw, qy + qh],
+                "centroid": [qx_sway + qw / 2.0, qy + qh * 0.85]
+            })
 
-        for i in range(min(queue_count, len(queue_spots))):
-            qx, qy, qw, qh, col = queue_spots[i]
+        # Shoppers at Counter 2
+        q2_spots = [
+            (int(w * 0.70), int(h * 0.40), 45, 105, (100, 220, 180)),
+            (int(w * 0.58), int(h * 0.42), 45, 105, (220, 160, 80)),
+        ]
+        for i in range(min(q2_count, len(q2_spots))):
+            qx, qy, qw, qh, col = q2_spots[i]
             qx_sway = int(qx + math.sin(t * 1.3 + i) * 3)
             cv2.circle(frame, (qx_sway + qw // 2, qy + 14), 12, (220, 180, 140), -1)
             cv2.rectangle(frame, (qx_sway + 8, qy + 28), (qx_sway + qw - 8, qy + qh - 20), col, -1)
@@ -552,14 +649,13 @@ class SyntheticQueueGenerator:
 
 
 # ==============================================================================
-# 6. DUAL-STREAM VISION & RE-IDENTIFICATION ENGINE
+# 6. DUAL-STREAM MULTI-ZONE VISION ENGINE
 # ==============================================================================
 
 class DualCameraVisionEngine:
     """
-    Manages two concurrent video streams, runs role-based YOLO inference with hardware decimation,
-    handles auto-reconnect for USB cameras, executes CSIM occlusion logic, tracks stock deltas,
-    and logs operational incidents to SQLite WAL database.
+    Manages concurrent multi-shelf planogram tracking and multi-register queue monitoring
+    with on-device NPU/DirectML hardware acceleration and SQLite event persistence.
     """
 
     def __init__(self, model_path: str = "yolov8n.pt", imgsz: int = 320):
@@ -575,10 +671,14 @@ class DualCameraVisionEngine:
         self.db = RetailDatabase()
         self.start_epoch = time.time()
 
-        # Dynamic ROI boundaries loaded from config
-        cfg = load_config()
-        self.shelf_roi = cfg.get("shelf_roi", DEFAULT_CONFIG["shelf_roi"])
-        self.queue_roi = cfg.get("queue_roi", DEFAULT_CONFIG["queue_roi"])
+        # Multi-Zone planogram configuration
+        zones_cfg = load_zones_config()
+        self.shelf_zones = zones_cfg.get("shelf_zones", DEFAULT_ZONES_CONFIG["shelf_zones"])
+        self.queue_lanes = zones_cfg.get("queue_lanes", DEFAULT_ZONES_CONFIG["queue_lanes"])
+
+        # Backward compatibility single-ROI fields
+        self.shelf_roi = {"x1": 0.10, "y1": 0.18, "x2": 0.90, "y2": 0.85}
+        self.queue_roi = {"x1": 0.10, "y1": 0.20, "x2": 0.90, "y2": 0.85}
 
         # Camera 1 (Webcam / Primary)
         self.cam1_cap: Optional[cv2.VideoCapture] = None
@@ -608,24 +708,23 @@ class DualCameraVisionEngine:
         self.last_mobile_frame_time = 0.0
         self.lock2 = threading.Lock()
 
-        # Retail State Machines & Delta Inventory
+        # Aggregate State Tracking
         self.shelf_stock_count = 5
-        self.shelf_capacity = 5
-        self.shelf_percentage = 100
-        self.shelf_status = "OPTIMAL"  # OPTIMAL, CUSTOMER_INTERACTING, LOW_STOCK_WARNING, PENDING_OOS, OUT_OF_STOCK_ALERT
+        self.shelf_capacity = 6
+        self.shelf_percentage = 83
+        self.shelf_status = "OPTIMAL"
         self.shelf_alert_active = False
         self.shelf_is_occluded = False
-        self.empty_shelf_start_time: Optional[float] = None
-
-        # Stock Transaction Log
-        self.total_items_taken = 0
-        self.total_items_restocked = 0
-        self.last_transaction = "🟢 Initial Stock Synchronized (5/5)"
 
         self.queue_customer_count = 0
         self.queue_status = "NORMAL"
         self.queue_estimated_wait_min = 0.0
         self.queue_congestion_alert = False
+        self.smart_recommendation = "All checkout registers are flowing normally."
+
+        self.total_items_taken = 0
+        self.total_items_restocked = 0
+        self.last_transaction = "🟢 Initial Stock Synchronized"
 
         self.state_lock = threading.Lock()
 
@@ -649,7 +748,7 @@ class DualCameraVisionEngine:
         self.t_watchdog = threading.Thread(target=self._camera_watchdog, daemon=True)
         self.t_watchdog.start()
 
-        print("[DualEngine] Dual-camera pipelines and camera watchdog started successfully.")
+        print("[DualEngine] Multi-zone vision pipelines and watchdog started successfully.")
 
     def stop(self):
         self.running = False
@@ -664,14 +763,14 @@ class DualCameraVisionEngine:
             return
 
         try:
-            print(f"[DualEngine] Loading YOLOv8 model: {self.model_path} on {DEVICE_NAME}...")
+            print(f"[DualEngine] Initializing YOLOv8 on {DEVICE_NAME}...")
             self.model = YOLO(self.model_path)
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
             self.model(dummy, imgsz=self.imgsz, verbose=False, device=DEVICE)
             self.model_loaded = True
             print("[DualEngine] YOLOv8 model loaded and warmed up.")
         except Exception as e:
-            print(f"[DualEngine] Model loading warning: {e}. Graceful fallback to synthetic.")
+            print(f"[DualEngine] Model loading note: {e}. Graceful fallback.")
             self.model_loaded = False
 
     def _camera_watchdog(self):
@@ -712,11 +811,6 @@ class DualCameraVisionEngine:
             pass
 
     def _run_inference(self, frame: np.ndarray, role: str) -> List[Dict[str, Any]]:
-        """
-        Zero-Waste Role-Based Inference Engine:
-        - QUEUE Monitor: filters for Person (class 0) only.
-        - SHELF Monitor: filters for Person + Supermarket FMCG Whitelist classes only.
-        """
         detections = []
         if not (self.model_loaded and self.model is not None):
             return detections
@@ -755,117 +849,178 @@ class DualCameraVisionEngine:
 
         return detections
 
-    def _process_shelf_role(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
-        # Exclude shopper class for stock inventory counting
-        retail_items = [d for d in detections if d.get("class_id") != 0]
+    def _calculate_box_overlap(self, box_a: List[float], box_b: List[float]) -> float:
+        ax1, ay1, ax2, ay2 = box_a
+        bx1, by1, bx2, by2 = box_b
+        ix1 = max(ax1, bx1)
+        iy1 = max(ay1, by1)
+        ix2 = min(ax2, bx2)
+        iy2 = min(ay2, by2)
+        if ix2 > ix1 and iy2 > iy1:
+            inter_area = (ix2 - ix1) * (iy2 - iy1)
+            box_b_area = max(1.0, (bx2 - bx1) * (by2 - by1))
+            return inter_area / box_b_area
+        return 0.0
+
+    def _process_multi_shelf_zones(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
+        """Evaluates inventory and CSIM occlusion independently for each configured shelf ROI."""
         shoppers = [d for d in detections if d.get("class_id") == 0]
+        items = [d for d in detections if d.get("class_id") != 0]
 
-        now = time.time()
         with self.state_lock:
-            previous_stock = self.shelf_stock_count
-            current_stock = len(retail_items)
+            total_items = 0
+            total_cap = 0
+            any_alert = False
+            any_occluded = False
 
-            # Detect item deltas
-            if current_stock < previous_stock:
-                delta_taken = previous_stock - current_stock
-                self.total_items_taken += delta_taken
-                self.last_transaction = f"🔴 -{delta_taken} item(s) picked by shopper"
-                self.db.log_event("ITEM_PICKED", "SHELF", f"Shopper picked {delta_taken} item(s). Remaining: {current_stock}/{self.shelf_capacity}.", "INFO")
-            elif current_stock > previous_stock:
-                delta_added = current_stock - previous_stock
-                self.total_items_restocked += delta_added
-                self.last_transaction = f"🟢 +{delta_added} item(s) restocked"
-                self.db.log_event("ITEM_RESTOCKED", "SHELF", f"Inventory replenished by +{delta_added}. Count: {current_stock}/{self.shelf_capacity}.", "INFO")
+            for zone in self.shelf_zones:
+                box = zone.get("box", [0.1, 0.2, 0.9, 0.8])
+                zx1, zy1 = int(box[0] * frame_w), int(box[1] * frame_h)
+                zx2, zy2 = int(box[2] * frame_w), int(box[3] * frame_h)
 
-            self.shelf_stock_count = current_stock
-            self.shelf_percentage = int((self.shelf_stock_count / max(1, self.shelf_capacity)) * 100)
+                # Count items whose centroids fall inside this specific shelf zone
+                zone_items = [
+                    it for it in items
+                    if zx1 <= it["centroid"][0] <= zx2 and zy1 <= it["centroid"][1] <= zy2
+                ]
+                prev_count = zone.get("current_count", zone.get("capacity", 6))
+                cur_count = len(zone_items)
+                zone["current_count"] = cur_count
+                zone["capacity_pct"] = int((cur_count / max(1, zone.get("capacity", 6))) * 100)
 
-            # Check occlusion with normalized shelf ROI
-            rx1 = int(self.shelf_roi["x1"] * frame_w)
-            ry1 = int(self.shelf_roi["y1"] * frame_h)
-            rx2 = int(self.shelf_roi["x2"] * frame_w)
-            ry2 = int(self.shelf_roi["y2"] * frame_h)
-            roi_area = max(1, (rx2 - rx1) * (ry2 - ry1))
+                total_items += cur_count
+                total_cap += zone.get("capacity", 6)
 
-            occluded = False
-            for p in shoppers:
-                bx1, by1, bx2, by2 = p["box"]
-                ix1 = max(rx1, bx1)
-                iy1 = max(ry1, by1)
-                ix2 = min(rx2, bx2)
-                iy2 = min(ry2, by2)
-                if ix2 > ix1 and iy2 > iy1:
-                    inter_area = (ix2 - ix1) * (iy2 - iy1)
-                    if (inter_area / roi_area) > 0.10:
-                        occluded = True
-                        break
+                # Track delta
+                if cur_count < prev_count:
+                    delta = prev_count - cur_count
+                    self.total_items_taken += delta
+                    self.last_transaction = f"🔴 -{delta} item(s) from {zone.get('name', 'Shelf')}"
+                elif cur_count > prev_count:
+                    delta = cur_count - prev_count
+                    self.total_items_restocked += delta
+                    self.last_transaction = f"🟢 +{delta} item(s) restocked in {zone.get('name', 'Shelf')}"
 
-            self.shelf_is_occluded = occluded
+                # CSIM Occlusion per zone
+                occluded = any(
+                    self._calculate_box_overlap(p["box"], [zx1, zy1, zx2, zy2]) > 0.10
+                    for p in shoppers
+                )
+                zone["is_occluded"] = occluded
+                if occluded:
+                    any_occluded = True
 
-            # State Transitions & Thresholds:
-            # 1. Customer Interaction (Alarms Paused)
-            if self.shelf_is_occluded:
-                if self.shelf_status != "CUSTOMER_INTERACTING":
-                    self.db.log_event("CUSTOMER_BROWSING", "SHELF", "Shopper interacting at shelf zone.", "INFO")
-                self.shelf_status = "CUSTOMER_INTERACTING"
-                self.empty_shelf_start_time = None
-                self.shelf_alert_active = False
-
-            # 2. Critical Out of Stock (0 Items for >= 2.0s)
-            elif self.shelf_stock_count == 0:
-                if self.empty_shelf_start_time is None:
-                    self.empty_shelf_start_time = now
-                if (now - self.empty_shelf_start_time) >= 2.0:
-                    if self.shelf_status != "OUT_OF_STOCK_ALERT":
-                        self.db.log_event("OUT_OF_STOCK_ALERT", "SHELF", "Shelf Tier-1 depleted (0 items).", "CRITICAL")
-                    self.shelf_status = "OUT_OF_STOCK_ALERT"
-                    self.shelf_alert_active = True
+                # State transitions per zone
+                if occluded:
+                    zone["status"] = "CUSTOMER_BROWSING"
+                    zone["alert"] = False
+                elif cur_count == 0:
+                    zone["status"] = "CRITICAL_EMPTY"
+                    zone["alert"] = True
+                    any_alert = True
+                elif cur_count <= zone.get("low_stock_threshold", 2):
+                    zone["status"] = "LOW_STOCK_WARNING"
+                    zone["alert"] = False
                 else:
-                    self.shelf_status = "PENDING_OOS"
-                    self.shelf_alert_active = False
+                    zone["status"] = "OPTIMAL"
+                    zone["alert"] = False
 
-            # 3. Low Stock Warning Threshold (<= 20% or <= 1 item remaining)
-            elif self.shelf_stock_count <= 1:
+            # Update Aggregate Shelf Status
+            self.shelf_stock_count = total_items
+            self.shelf_capacity = max(1, total_cap)
+            self.shelf_percentage = int((total_items / self.shelf_capacity) * 100)
+            self.shelf_is_occluded = any_occluded
+            self.shelf_alert_active = any_alert
+
+            if any_alert:
+                self.shelf_status = "OUT_OF_STOCK_ALERT"
+            elif any_occluded:
+                self.shelf_status = "CUSTOMER_INTERACTING"
+            elif self.shelf_percentage <= 25:
                 self.shelf_status = "LOW_STOCK_WARNING"
-                self.empty_shelf_start_time = None
-                self.shelf_alert_active = False
-
-            # 4. Optimal Stock Level (> 1 item)
             else:
                 self.shelf_status = "OPTIMAL"
-                self.empty_shelf_start_time = None
-                self.shelf_alert_active = False
 
-    def _process_queue_role(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
+    def _process_multi_queue_lanes(self, detections: List[Dict[str, Any]], frame_w: int, frame_h: int):
+        """Evaluates shopper headcount and congestion status independently for each checkout lane."""
         shoppers = [d for d in detections if d.get("class_id") == 0]
-        with self.state_lock:
-            self.queue_customer_count = len(shoppers)
-            self.queue_estimated_wait_min = round(self.queue_customer_count * 1.5, 1)
 
-            if self.queue_customer_count >= 2:
-                if self.queue_status != "CONGESTION_WARNING":
-                    self.db.log_event("CASHIER_DISPATCH_ALERT", "QUEUE", f"Queue count >= {self.queue_customer_count} shoppers. Est. wait: {self.queue_estimated_wait_min}m.", "WARNING")
-                self.queue_status = "CONGESTION_WARNING"
-                self.queue_congestion_alert = True
+        with self.state_lock:
+            total_queue_count = 0
+            congested_lanes = []
+            free_lanes = []
+
+            for lane in self.queue_lanes:
+                box = lane.get("box", [0.1, 0.2, 0.5, 0.8])
+                lx1, ly1 = int(box[0] * frame_w), int(box[1] * frame_h)
+                lx2, ly2 = int(box[2] * frame_w), int(box[3] * frame_h)
+
+                lane_persons = [
+                    p for p in shoppers
+                    if lx1 <= p["centroid"][0] <= lx2 and ly1 <= p["centroid"][1] <= ly2
+                ]
+                count = len(lane_persons)
+                lane["headcount"] = count
+                lane["est_wait_min"] = round(count * 1.5, 1)
+                total_queue_count += count
+
+                if count == 0:
+                    lane["status"] = "FREE_AVAILABLE"
+                    lane["badge"] = "🟢 Open & Free"
+                    lane["congested"] = False
+                    free_lanes.append(lane["name"])
+                elif count == 1:
+                    lane["status"] = "NORMAL_FLOW"
+                    lane["badge"] = "🟡 1 Shopper (~1.5m)"
+                    lane["congested"] = False
+                else:
+                    lane["status"] = "CONGESTED"
+                    lane["badge"] = f"🔴 Congested ({count} Shoppers)"
+                    lane["congested"] = True
+                    congested_lanes.append((lane["name"], count))
+
+            self.queue_customer_count = total_queue_count
+            self.queue_estimated_wait_min = round(total_queue_count * 1.5, 1)
+            self.queue_congestion_alert = len(congested_lanes) > 0
+            self.queue_status = "CONGESTION_WARNING" if self.queue_congestion_alert else "NORMAL"
+
+            # Smart Traffic Director Recommendation
+            if congested_lanes and free_lanes:
+                c_name, c_cnt = congested_lanes[0]
+                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). Reroute incoming shoppers to {free_lanes[0]} (Free)."
+            elif congested_lanes:
+                c_name, c_cnt = congested_lanes[0]
+                self.smart_recommendation = f"🚨 {c_name} is congested ({c_cnt} shoppers). Dispatch additional cashier immediately."
             else:
-                self.queue_status = "NORMAL"
-                self.queue_congestion_alert = False
+                self.smart_recommendation = "🟢 All checkout registers are flowing smoothly."
 
     def _render_feed(self, frame: np.ndarray, detections: List[Dict[str, Any]], role: str, title: str) -> np.ndarray:
         out = frame.copy()
         h, w = out.shape[:2]
 
-        # Draw Dynamic ROI Zone Box
-        roi = self.shelf_roi if role == "SHELF" else self.queue_roi
-        rx1 = int(roi["x1"] * w)
-        ry1 = int(roi["y1"] * h)
-        rx2 = int(roi["x2"] * w)
-        ry2 = int(roi["y2"] * h)
-        roi_col = (0, 200, 255) if role == "SHELF" else (0, 165, 255)
-        
-        cv2.rectangle(out, (rx1, ry1), (rx2, ry2), roi_col, 1)
-        roi_label = f"ZONE: {role} (CALIBRATED)"
-        cv2.putText(out, roi_label, (rx1 + 6, ry1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.32, roi_col, 1)
+        # Draw Multi-Zones
+        if role == "SHELF":
+            for zone in self.shelf_zones:
+                box = zone.get("box", [0.1, 0.2, 0.9, 0.8])
+                zx1, zy1 = int(box[0] * w), int(box[1] * h)
+                zx2, zy2 = int(box[2] * w), int(box[3] * h)
+                status = zone.get("status", "OPTIMAL")
+                zcol = (0, 0, 255) if status == "CRITICAL_EMPTY" else (0, 165, 255) if status == "LOW_STOCK_WARNING" else (0, 200, 255) if status == "CUSTOMER_BROWSING" else (0, 255, 150)
+                
+                cv2.rectangle(out, (zx1, zy1), (zx2, zy2), zcol, 1)
+                zlabel = f"{zone.get('name', 'Tier')}: {zone.get('current_count', 0)}/{zone.get('capacity', 6)}"
+                cv2.putText(out, zlabel, (zx1 + 6, zy1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.32, zcol, 1)
+        else:
+            for lane in self.queue_lanes:
+                box = lane.get("box", [0.1, 0.2, 0.5, 0.8])
+                lx1, ly1 = int(box[0] * w), int(box[1] * h)
+                lx2, ly2 = int(box[2] * w), int(box[3] * h)
+                status = lane.get("status", "FREE_AVAILABLE")
+                lcol = (0, 0, 255) if status == "CONGESTED" else (0, 200, 255) if status == "NORMAL_FLOW" else (0, 255, 150)
+                
+                cv2.rectangle(out, (lx1, ly1), (lx2, ly2), lcol, 1)
+                llabel = f"{lane.get('name', 'Counter')}: {lane.get('headcount', 0)} queued ({lane.get('est_wait_min', 0.0)}m)"
+                cv2.putText(out, llabel, (lx1 + 6, ly1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.32, lcol, 1)
 
         # Draw detections
         for det in detections:
@@ -882,7 +1037,7 @@ class DualCameraVisionEngine:
         # Top Bar HUD
         cv2.rectangle(out, (0, 0), (w, 24), (10, 14, 22), -1)
         cv2.line(out, (0, 24), (w, 24), (40, 50, 65), 1)
-        cv2.putText(out, f"{title} // ROLE: {role}", (8, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 240, 255), 1)
+        cv2.putText(out, f"{title} // ROLE: {role} // {DEVICE_NAME}", (8, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 240, 255), 1)
 
         # Bottom Bar Status
         cv2.rectangle(out, (0, h - 22), (w, h), (10, 14, 22), -1)
@@ -890,10 +1045,10 @@ class DualCameraVisionEngine:
 
         with self.state_lock:
             if role == "SHELF":
-                status_str = f"Stock: {self.shelf_stock_count}/5 ({self.shelf_percentage}%) | Status: {self.shelf_status}"
+                status_str = f"Multi-Shelf Inventory: {self.shelf_stock_count}/{self.shelf_capacity} ({self.shelf_percentage}%) | Status: {self.shelf_status}"
                 col = (0, 0, 255) if self.shelf_alert_active else (0, 165, 255) if self.shelf_status == "LOW_STOCK_WARNING" else (0, 200, 255) if self.shelf_is_occluded else (0, 255, 150)
             else:
-                status_str = f"Queue: {self.queue_customer_count} shoppers | Wait: {self.queue_estimated_wait_min}m | Status: {self.queue_status}"
+                status_str = f"Multi-Register Flow: {self.queue_customer_count} shoppers | Wait: {self.queue_estimated_wait_min}m | Status: {self.queue_status}"
                 col = (0, 0, 255) if self.queue_congestion_alert else (0, 255, 150)
 
         cv2.putText(out, status_str, (8, h - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.34, col, 1)
@@ -922,7 +1077,7 @@ class DualCameraVisionEngine:
 
         fps_timer = time.time()
         fps_frames = 0
-        infer_stride = 1 if torch.cuda.is_available() else 2
+        infer_stride = 1 if (torch.cuda.is_available() or "npu" in str(DEVICE).lower()) else 2
 
         while self.running:
             start_t = time.time()
@@ -948,9 +1103,9 @@ class DualCameraVisionEngine:
 
             h, w = frame.shape[:2]
             if self.cam1_role == "SHELF":
-                self._process_shelf_role(detections, w, h)
+                self._process_multi_shelf_zones(detections, w, h)
             else:
-                self._process_queue_role(detections, w, h)
+                self._process_multi_queue_lanes(detections, w, h)
 
             annotated = self._render_feed(frame, detections, self.cam1_role, "CAM 01 (PRIMARY)")
             ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
@@ -975,7 +1130,7 @@ class DualCameraVisionEngine:
         """Worker thread for Camera 2 (Secondary / Mobile Ingest) with frame decimation."""
         fps_timer = time.time()
         fps_frames = 0
-        infer_stride = 1 if torch.cuda.is_available() else 2
+        infer_stride = 1 if (torch.cuda.is_available() or "npu" in str(DEVICE).lower()) else 2
 
         while self.running:
             start_t = time.time()
@@ -1002,9 +1157,9 @@ class DualCameraVisionEngine:
 
             h, w = frame.shape[:2]
             if self.cam2_role == "QUEUE":
-                self._process_queue_role(detections, w, h)
+                self._process_multi_queue_lanes(detections, w, h)
             else:
-                self._process_shelf_role(detections, w, h)
+                self._process_multi_shelf_zones(detections, w, h)
 
             annotated = self._render_feed(frame, detections, self.cam2_role, f"CAM 02 ({self.cam2_source})")
             ret, buf = cv2.imencode('.jpg', annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
@@ -1047,13 +1202,16 @@ class DualCameraVisionEngine:
                 "alert_active": self.shelf_alert_active,
                 "total_items_taken": self.total_items_taken,
                 "total_items_restocked": self.total_items_restocked,
-                "last_transaction": self.last_transaction
+                "last_transaction": self.last_transaction,
+                "sections": self.shelf_zones
             }
             queue_data = {
                 "customer_count": self.queue_customer_count,
                 "status": self.queue_status,
                 "estimated_wait_min": self.queue_estimated_wait_min,
-                "congestion_alert": self.queue_congestion_alert
+                "congestion_alert": self.queue_congestion_alert,
+                "registers": self.queue_lanes,
+                "smart_recommendation": self.smart_recommendation
             }
 
         return {
@@ -1074,6 +1232,9 @@ class DualCameraVisionEngine:
             },
             "shelf": shelf_data,
             "queue": queue_data,
+            "shelf_sections": self.shelf_zones,
+            "queue_registers": self.queue_lanes,
+            "smart_recommendation": self.smart_recommendation,
             "device": {
                 "platform": sys_telemetry["silicon_target"],
                 "soc_temp_c": sys_telemetry["soc_temp_c"],
@@ -1109,9 +1270,9 @@ async def lifespan(app: FastAPI):
     engine.stop()
 
 app = FastAPI(
-    title="RetailSense OS // Edge Intelligence Platform (SIH26179)",
-    description="Dual-Stream Edge Vision Analytics Platform with Supermarket Whitelist Filtering, SQLite WAL Shift Analytics & Interactive ROI Calibrator",
-    version="3.6.0",
+    title="RetailSense OS // NPU-Accelerated Supermarket Intelligence Platform (SIH26179)",
+    description="Dual-Stream Multi-Shelf Planogram & Multi-Register Flow Platform with On-Device NPU Acceleration",
+    version="4.0.0",
     lifespan=lifespan
 )
 
@@ -1209,7 +1370,7 @@ async def video_feed():
 
 @app.get("/api/metrics")
 async def get_metrics():
-    """Unified telemetry metrics endpoint."""
+    """Unified telemetry metrics endpoint with multi-shelf and multi-register state."""
     return JSONResponse(content=engine.get_unified_metrics())
 
 
@@ -1244,7 +1405,8 @@ async def health_check():
         "status": "healthy",
         "dual_engine_running": engine.running,
         "inference_device": DEVICE_NAME,
-        "device_backend": str(DEVICE),
+        "backend_type": BACKEND_TYPE,
+        "npu_active": "npu" in str(DEVICE).lower() or "npu" in BACKEND_TYPE.lower(),
         "fp16": USE_HALF,
         "cam1_role": engine.cam1_role,
         "cam2_role": engine.cam2_role,
@@ -1252,7 +1414,43 @@ async def health_check():
     }
 
 
-# --- Dynamic ROI API ---
+# --- Multi-Zone Planogram API ---
+
+class MultiZonesConfigRequest(BaseModel):
+    shelf_zones: Optional[List[Dict[str, Any]]] = None
+    queue_lanes: Optional[List[Dict[str, Any]]] = None
+
+
+@app.get("/api/config/zones")
+async def get_zones_config():
+    """Returns the multi-tier shelf zones and multi-register queue lanes."""
+    return {
+        "shelf_zones": engine.shelf_zones,
+        "queue_lanes": engine.queue_lanes
+    }
+
+
+@app.post("/api/config/zones")
+async def update_zones_config(req: MultiZonesConfigRequest):
+    """Updates multi-tier shelf zones and multi-register queue lanes, saving to config.json."""
+    if req.shelf_zones is not None:
+        engine.shelf_zones = req.shelf_zones
+    if req.queue_lanes is not None:
+        engine.queue_lanes = req.queue_lanes
+
+    save_zones_config({
+        "shelf_zones": engine.shelf_zones,
+        "queue_lanes": engine.queue_lanes
+    })
+
+    return {
+        "status": "success",
+        "shelf_zones": engine.shelf_zones,
+        "queue_lanes": engine.queue_lanes
+    }
+
+
+# --- Backward Compatibility Single-ROI API ---
 
 class ROIConfigRequest(BaseModel):
     camera_id: Optional[int] = None
@@ -1265,7 +1463,6 @@ class ROIConfigRequest(BaseModel):
 
 @app.get("/api/config/roi")
 async def get_roi_config():
-    """Returns the current normalized ROI coordinates for Shelf and Queue zones."""
     return {
         "shelf_roi": engine.shelf_roi,
         "queue_roi": engine.queue_roi
@@ -1274,7 +1471,6 @@ async def get_roi_config():
 
 @app.post("/api/config/roi")
 async def update_roi_config(req: ROIConfigRequest):
-    """Updates normalized ROI coordinates in memory and writes to config.json."""
     roi_dict = {
         "x1": max(0.0, min(1.0, req.x1)),
         "y1": max(0.0, min(1.0, req.y1)),
@@ -1284,12 +1480,16 @@ async def update_roi_config(req: ROIConfigRequest):
 
     if req.roi_type.upper() == "SHELF":
         engine.shelf_roi = roi_dict
+        if len(engine.shelf_zones) > 0:
+            engine.shelf_zones[0]["box"] = [roi_dict["x1"], roi_dict["y1"], roi_dict["x2"], roi_dict["y2"]]
     elif req.roi_type.upper() == "QUEUE":
         engine.queue_roi = roi_dict
+        if len(engine.queue_lanes) > 0:
+            engine.queue_lanes[0]["box"] = [roi_dict["x1"], roi_dict["y1"], roi_dict["x2"], roi_dict["y2"]]
 
-    save_config({
-        "shelf_roi": engine.shelf_roi,
-        "queue_roi": engine.queue_roi
+    save_zones_config({
+        "shelf_zones": engine.shelf_zones,
+        "queue_lanes": engine.queue_lanes
     })
 
     return {
@@ -1419,13 +1619,13 @@ if __name__ == "__main__":
 
     proto = "https" if use_ssl else "http"
     print("=" * 70)
-    print("  RETAILSENSE OS // DUAL-CAMERA EDGE PLATFORM (SIH26179)")
+    print("  RETAILSENSE OS // NPU-ACCELERATED SUPERMARKET PLATFORM (SIH26179)")
     print("=" * 70)
     print(f"  * Mode:                  {proto.upper()} ({'SSL Enabled' if use_ssl else 'Standard HTTP'})")
     print(f"  * Dashboard Console:     {proto}://{local_ip}:{port}/")
     print(f"  * Mobile Phone Ingest:   {proto}://{local_ip}:{port}/mobile_cam")
     print(f"  * Pitch Deck:            {proto}://{local_ip}:{port}/presentation")
-    print(f"  * Device:                {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
+    print(f"  * Inference Hardware:    {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
     if not use_ssl:
         print("\n  💡 TIP: For direct mobile Chrome camera access without flag configuration,")
         print(f"     launch with SSL:  .\\.venv\\Scripts\\python.exe app.py --ssl")

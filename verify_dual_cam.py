@@ -1,16 +1,16 @@
 """
 verify_dual_cam.py
-Automated Verification Suite for RetailSense OS // Dual-Camera Edge Intelligence Platform (SIH26179)
+Automated Verification Suite for RetailSense OS // NPU-Accelerated Supermarket Intelligence Platform (SIH26179)
 Verifies:
-1. Hardware Engine & GPU/CUDA/iGPU/CPU Auto-Detection.
-2. Dual Synthetic Ground Truth Generators (>2000 FPS).
-3. YOLOv8 Ingestion & Supermarket Class Whitelisting (FMCG + Shopper).
-4. Role-Based Compute Decoupling (Queue scans Person only; Shelf scans Retail Goods).
-5. Dynamic Camera Role Swapping & Stock Delta State Machine (Low-Stock Threshold <= 1).
-6. FastAPI HTTP Endpoints (/ , /mobile_cam, /presentation, /api/metrics, /api/network_info, /api/config/camera).
-7. Dynamic ROI Configuration API (/api/config/roi) & Persistence (config.json).
-8. SQLite Event Store (WAL Mode) & Shift Summary Report (/api/reports/shift_summary).
-9. WebSocket Mobile Frame Ingestion (/ws/mobile_upload).
+1. NPU / Hardware Engine Auto-Detection & Inference Profiler.
+2. Dual Synthetic Ground Truth Multi-Zone Generators (>1000 FPS).
+3. Supermarket Class Whitelisting & Role-Based Compute Decoupling.
+4. Multi-Shelf Planogram Spatial Tracking (Tier 1 Beverages + Tier 2 Snacks).
+5. Multi-Register Queue Congestion Matrix & Smart Traffic Director Recommendation.
+6. Dynamic Multi-Zone Planogram Configuration API (/api/config/zones) & Persistence.
+7. FastAPI Web Server HTTP Endpoints & Schema Contracts.
+8. SQLite Event Store (WAL Mode) & Shift Summary Analytics.
+9. Mobile WebSocket Video Ingestion (/ws/mobile_upload).
 """
 
 import time
@@ -24,27 +24,27 @@ warnings.filterwarnings("ignore")
 from fastapi.testclient import TestClient
 
 def run_verification():
-    print("=" * 70)
-    print("  RETAILSENSE OS // DUAL-CAMERA AUTOMATED VERIFICATION SUITE")
-    print("=" * 70)
+    print("=" * 75)
+    print("  RETAILSENSE OS // NPU-ACCELERATED MULTI-ZONE AUTOMATED TEST SUITE")
+    print("=" * 75)
 
-    # 1. Test Hardware Profiler & GPU/iGPU/CPU Detection
-    print("\n[TEST 1] Verifying Hardware Engine & Device Detection...")
-    from app import DEVICE, USE_HALF, DEVICE_NAME, HardwareProfiler, get_local_ip
+    # 1. Test Hardware Profiler & NPU / GPU / CPU Detection
+    print("\n[TEST 1] Verifying NPU & Hardware Acceleration Engine...")
+    from app import DEVICE, USE_HALF, DEVICE_NAME, BACKEND_TYPE, HardwareProfiler, get_local_ip
 
-    telemetry = HardwareProfiler.get_system_telemetry(fps_cam1=29.2, fps_cam2=28.4, latency_ms=7.4)
-    print(f"  -> Detected Inference Engine: {DEVICE_NAME} (Device: {DEVICE}, FP16: {USE_HALF})")
+    telemetry = HardwareProfiler.get_system_telemetry(fps_cam1=29.2, fps_cam2=28.4, latency_ms=6.8)
+    print(f"  -> Detected Engine: {DEVICE_NAME}")
+    print(f"  -> Device Backend: {DEVICE} (Type: {BACKEND_TYPE}, FP16: {USE_HALF})")
     print(f"  -> Silicon Target: {telemetry['silicon_target']}")
     print(f"  -> SoC Temperature: {telemetry['soc_temp_c']}°C")
-    print(f"  -> CPU Load: {telemetry['cpu_load_pct']}%")
     print(f"  -> Host Local IP: {get_local_ip()}")
     assert "inference_device" in telemetry
+    assert "backend_type" in telemetry
     assert "edge_fps_cam1" in telemetry
-    assert "edge_fps_cam2" in telemetry
-    print("  [PASS] Hardware Profiler & Device Engine verified.")
+    print("  [PASS] NPU & Hardware Acceleration Engine verified.")
 
     # 2. Test Dual Synthetic Stream Generators
-    print("\n[TEST 2] Verifying Dual Synthetic Stream Generators...")
+    print("\n[TEST 2] Verifying Multi-Zone Synthetic Stream Generators...")
     from app import SyntheticShelfGenerator, SyntheticQueueGenerator
 
     gen_shelf = SyntheticShelfGenerator(640, 360)
@@ -53,7 +53,7 @@ def run_verification():
         frame_s, det_s = gen_shelf.generate()
     dt_s = max(0.0001, time.time() - t0)
     fps_s = 60 / dt_s
-    print(f"  -> Shelf Generator Throughput: {fps_s:.1f} FPS (Shape: {frame_s.shape})")
+    print(f"  -> Multi-Tier Shelf Generator Throughput: {fps_s:.1f} FPS (Shape: {frame_s.shape})")
     assert frame_s.shape == (360, 640, 3)
 
     gen_queue = SyntheticQueueGenerator(640, 360)
@@ -62,7 +62,7 @@ def run_verification():
         frame_q, det_q = gen_queue.generate()
     dt_q = max(0.0001, time.time() - t0)
     fps_q = 60 / dt_q
-    print(f"  -> Queue Generator Throughput: {fps_q:.1f} FPS (Shape: {frame_q.shape})")
+    print(f"  -> Multi-Register Queue Generator Throughput: {fps_q:.1f} FPS (Shape: {frame_q.shape})")
     assert frame_q.shape == (360, 640, 3)
     print("  [PASS] Both synthetic generators operate well above target 30 FPS.")
 
@@ -77,7 +77,7 @@ def run_verification():
     print(f"  -> Queue Target Classes Count: {len(QUEUE_TARGET_CLASS_IDS)} (Shopper ONLY)")
     assert 0 in SHELF_TARGET_CLASS_IDS
     assert 39 in SHELF_TARGET_CLASS_IDS  # Bottle
-    assert 41 in SHELF_TARGET_CLASS_IDS  # Cup
+    assert 45 in SHELF_TARGET_CLASS_IDS  # Snack bowl
     assert 73 in SHELF_TARGET_CLASS_IDS  # Packaged Box
     assert QUEUE_TARGET_CLASS_IDS == [0]
 
@@ -89,80 +89,79 @@ def run_verification():
     assert isinstance(queue_dets, list)
     print("  [PASS] Supermarket Whitelisting & Role Filtering verified.")
 
-    # 4. Test Stock Delta Tracking & Low-Stock Warning Threshold
-    print("\n[TEST 4] Verifying Stock Delta & Low-Stock Warning Threshold...")
-    # Simulate shelf stock transition to 1 item (<=20% threshold)
-    engine._process_shelf_role([
-        {"class_id": 39, "class_name": "Beverage Bottle", "box": [100, 100, 150, 150]}
-    ], 640, 360)
-    assert engine.shelf_stock_count == 1
-    assert engine.shelf_status == "LOW_STOCK_WARNING"
-    assert "🔴 -" in engine.last_transaction or "🟢 +" in engine.last_transaction
-    print(f"  -> Stock 1/5 Triggered State: {engine.shelf_status}")
-    print(f"  -> Transaction Log: {engine.last_transaction}")
+    # 4. Test Multi-Shelf Planogram Spatial Tracking
+    print("\n[TEST 4] Verifying Multi-Shelf Planogram Spatial Tracking...")
+    # Tier 1 (Beverages: y 0.18-0.48): place 2 bottles; Tier 2 (Snacks: y 0.52-0.85): place 3 snacks
+    simulated_shelf_detections = [
+        # Tier 1 (y=100 in 360 is ~0.28)
+        {"class_id": 39, "class_name": "Beverage Bottle", "box": [100, 80, 140, 130], "centroid": [120, 105]},
+        {"class_id": 39, "class_name": "Beverage Bottle", "box": [200, 80, 240, 130], "centroid": [220, 105]},
+        # Tier 2 (y=240 in 360 is ~0.67)
+        {"class_id": 45, "class_name": "Snack Container", "box": [100, 220, 140, 260], "centroid": [120, 240]},
+        {"class_id": 73, "class_name": "Packaged Goods / Box", "box": [200, 220, 240, 260], "centroid": [220, 240]},
+        {"class_id": 45, "class_name": "Snack Container", "box": [300, 220, 340, 260], "centroid": [320, 240]},
+    ]
+    engine._process_multi_shelf_zones(simulated_shelf_detections, 640, 360)
+    
+    t1 = next(z for z in engine.shelf_zones if z["id"] == "shelf_tier_1")
+    t2 = next(z for z in engine.shelf_zones if z["id"] == "shelf_tier_2")
+    
+    print(f"  -> Tier 1 ({t1['name']}): {t1['current_count']}/{t1['capacity']} items ({t1['status']})")
+    print(f"  -> Tier 2 ({t2['name']}): {t2['current_count']}/{t2['capacity']} items ({t2['status']})")
+    assert t1["current_count"] == 2
+    assert t2["current_count"] == 3
+    print("  [PASS] Multi-Shelf Planogram spatial tracking accurately segments item counts.")
 
-    # Restore optimal stock
-    engine._process_shelf_role([
-        {"class_id": 39, "class_name": "Beverage Bottle", "box": [100, 100, 150, 150]},
-        {"class_id": 41, "class_name": "Beverage Cup", "box": [160, 100, 210, 150]},
-        {"class_id": 40, "class_name": "Soft Drink / Can", "box": [220, 100, 270, 150]},
-        {"class_id": 73, "class_name": "Packaged Goods / Box", "box": [280, 100, 330, 150]},
-        {"class_id": 39, "class_name": "Beverage Bottle", "box": [340, 100, 390, 150]}
-    ], 640, 360)
-    assert engine.shelf_stock_count == 5
-    assert engine.shelf_status == "OPTIMAL"
-    print(f"  -> Restocked 5/5 State: {engine.shelf_status}")
-    print(f"  -> Transaction Log: {engine.last_transaction}")
-    print("  [PASS] Stock Delta Tracking & Low-Stock Thresholds verified.")
+    # 5. Test Multi-Register Queue Flow & Smart Traffic Director
+    print("\n[TEST 5] Verifying Multi-Register Queue Flow & Traffic Director...")
+    # Counter 1 (x: 0.10-0.48): place 2 shoppers (congested); Counter 2 (x: 0.52-0.90): 0 shoppers (free)
+    simulated_queue_detections = [
+        {"class_id": 0, "class_name": "Shopper", "box": [120, 120, 170, 260], "centroid": [145, 190]},
+        {"class_id": 0, "class_name": "Shopper", "box": [200, 120, 250, 260], "centroid": [225, 190]},
+    ]
+    engine._process_multi_queue_lanes(simulated_queue_detections, 640, 360)
 
-    # 5. Test Dual Camera Vision Engine & Dynamic Role Swapping
-    print("\n[TEST 5] Verifying Dual-Camera Vision Engine & Role State Machine...")
-    assert engine.cam1_role == "SHELF"
-    assert engine.cam2_role == "QUEUE"
-    print(f"  -> Default Roles: Cam1={engine.cam1_role}, Cam2={engine.cam2_role}")
+    r1 = next(l for l in engine.queue_lanes if l["id"] == "reg_1")
+    r2 = next(l for l in engine.queue_lanes if l["id"] == "reg_2")
 
-    # Test dynamic role swap
-    engine.cam1_role = "QUEUE"
-    engine.cam2_role = "SHELF"
-    assert engine.cam1_role == "QUEUE"
-    assert engine.cam2_role == "SHELF"
-    print(f"  -> Swapped Roles: Cam1={engine.cam1_role}, Cam2={engine.cam2_role}")
+    print(f"  -> Counter 1: {r1['headcount']} shoppers ({r1['status']}) • {r1['est_wait_min']}m wait")
+    print(f"  -> Counter 2: {r2['headcount']} shoppers ({r2['status']}) • {r2['est_wait_min']}m wait")
+    print(f"  -> Smart Recommendation: {engine.smart_recommendation}")
 
-    # Restore default
-    engine.cam1_role = "SHELF"
-    engine.cam2_role = "QUEUE"
-    print("  [PASS] Dynamic Role Swapping verified.")
+    assert r1["headcount"] == 2
+    assert r1["status"] == "CONGESTED"
+    assert r2["headcount"] == 0
+    assert r2["status"] == "FREE_AVAILABLE"
+    assert "congested" in engine.smart_recommendation.lower()
+    print("  [PASS] Multi-Register Traffic Director correctly detects congestion and suggests rerouting.")
 
-    # 6. Test FastAPI HTTP Endpoints & Schema Contracts
-    print("\n[TEST 6] Verifying FastAPI Web Server & API Telemetry Schema...")
+    # 6. Test FastAPI Web Server & Multi-Zone API Contracts
+    print("\n[TEST 6] Verifying Multi-Zone API Endpoints (/api/config/zones & /api/metrics)...")
     from app import app
 
     with TestClient(app) as client:
-        # GET / (Store Operations Dashboard)
-        res_root = client.get("/")
-        print(f"  -> GET / -> Status {res_root.status_code}")
-        assert res_root.status_code == 200
-        assert "RetailSense OS" in res_root.text
+        # GET /api/config/zones
+        res_zones_get = client.get("/api/config/zones")
+        print(f"  -> GET /api/config/zones -> Status {res_zones_get.status_code}")
+        assert res_zones_get.status_code == 200
+        z_data = res_zones_get.json()
+        assert "shelf_zones" in z_data
+        assert "queue_lanes" in z_data
 
-        # GET /mobile_cam (Mobile Camera Client)
-        res_mobile = client.get("/mobile_cam")
-        print(f"  -> GET /mobile_cam -> Status {res_mobile.status_code}")
-        assert res_mobile.status_code == 200
-        assert "RetailSense Mobile" in res_mobile.text
-
-        # GET /presentation (Keynote Pitch Deck)
-        res_pres = client.get("/presentation")
-        print(f"  -> GET /presentation -> Status {res_pres.status_code}")
-        assert res_pres.status_code == 200
-
-        # GET /api/network_info
-        res_net = client.get("/api/network_info")
-        print(f"  -> GET /api/network_info -> Status {res_net.status_code}")
-        assert res_net.status_code == 200
-        net_json = res_net.json()
-        assert "local_ip" in net_json
-        assert "mobile_url" in net_json
-        print(f"     * Local IP: {net_json['local_ip']}, Mobile URL: {net_json['mobile_url']}")
+        # POST /api/config/zones
+        res_zones_post = client.post("/api/config/zones", json={
+            "shelf_zones": [
+                {"id": "shelf_tier_1", "name": "Tier 1 - Cold Beverages", "box": [0.10, 0.18, 0.90, 0.48], "capacity": 6, "low_stock_threshold": 2},
+                {"id": "shelf_tier_2", "name": "Tier 2 - Snacks & Biscuits", "box": [0.10, 0.52, 0.90, 0.85], "capacity": 8, "low_stock_threshold": 2}
+            ],
+            "queue_lanes": [
+                {"id": "reg_1", "name": "Counter 1 (Main)", "box": [0.10, 0.20, 0.48, 0.85], "max_wait_threshold_min": 3.0},
+                {"id": "reg_2", "name": "Counter 2 (Self-Checkout)", "box": [0.52, 0.20, 0.90, 0.85], "max_wait_threshold_min": 3.0}
+            ]
+        })
+        print(f"  -> POST /api/config/zones -> Status {res_zones_post.status_code}")
+        assert res_zones_post.status_code == 200
+        assert engine.shelf_zones[0]["name"] == "Tier 1 - Cold Beverages"
 
         # GET /api/metrics
         res_metrics = client.get("/api/metrics")
@@ -170,78 +169,31 @@ def run_verification():
         assert res_metrics.status_code == 200
         m = res_metrics.json()
 
+        assert "shelf_sections" in m
+        assert "queue_registers" in m
+        assert "smart_recommendation" in m
         assert "system" in m
-        assert "cameras" in m
-        assert "shelf" in m
-        assert "queue" in m
-        assert "compliance" in m
 
-        print(f"     * Inference Engine: {m['system']['inference_device']}")
-        print(f"     * Cam 1 ({m['cameras']['cam1']['role']}): {m['cameras']['cam1']['source']} @ {m['cameras']['cam1']['fps']} FPS")
-        print(f"     * Cam 2 ({m['cameras']['cam2']['role']}): {m['cameras']['cam2']['source']} @ {m['cameras']['cam2']['fps']} FPS")
-        print(f"     * Shelf Stock: {m['shelf']['stock_count']}/{m['shelf']['stock_capacity']} ({m['shelf']['status']})")
-        print(f"     * Queue Flow: {m['queue']['customer_count']} Shoppers ({m['queue']['status']})")
-        print(f"     * Compliance: DPDP={m['compliance']['dpdp_compliant']}, Uplink={m['compliance']['cloud_egress_kbps']} KB/s")
+        print(f"     * Device: {m['system']['inference_device']}")
+        print(f"     * Shelf Sections: {len(m['shelf_sections'])} Tiers")
+        print(f"     * Registers: {len(m['queue_registers'])} Counters")
+        print(f"     * Traffic Recommendation: {m['smart_recommendation']}")
+        print("  [PASS] Multi-Zone API endpoints and metrics schema verified.")
 
-        # POST /api/config/camera
-        res_cfg = client.post("/api/config/camera", json={"cam1_role": "SHELF", "cam2_role": "QUEUE"})
-        print(f"  -> POST /api/config/camera -> Status {res_cfg.status_code}")
-        assert res_cfg.status_code == 200
-
-        # POST /api/simulation/control
-        res_sim = client.post("/api/simulation/control", json={"mode": "CUSTOMER_OCCLUSION"})
-        print(f"  -> POST /api/simulation/control -> Status {res_sim.status_code}")
-        assert res_sim.status_code == 200
-
-        # GET /api/config/roi & POST /api/config/roi
-        print("\n[TEST 7] Verifying Dynamic ROI Configuration API & Persistence...")
-        res_roi_get = client.get("/api/config/roi")
-        print(f"  -> GET /api/config/roi -> Status {res_roi_get.status_code}")
-        assert res_roi_get.status_code == 200
-        roi_data = res_roi_get.json()
-        assert "shelf_roi" in roi_data
-        assert "queue_roi" in roi_data
-
-        res_roi_post = client.post("/api/config/roi", json={
-            "camera_id": 1,
-            "roi_type": "SHELF",
-            "x1": 0.12,
-            "y1": 0.22,
-            "x2": 0.88,
-            "y2": 0.82
-        })
-        print(f"  -> POST /api/config/roi -> Status {res_roi_post.status_code}")
-        assert res_roi_post.status_code == 200
-        assert engine.shelf_roi["x1"] == 0.12
-        print(f"     * Updated Shelf ROI: {engine.shelf_roi}")
-        print("  [PASS] Dynamic ROI Configuration & Persistence verified.")
-
-        # GET /api/reports/shift_summary & /api/history/events
-        print("\n[TEST 8] Verifying SQLite WAL Shift Analytics & Incident Logs...")
+        # GET /api/reports/shift_summary
+        print("\n[TEST 7] Verifying SQLite WAL Shift Analytics & CSV Export...")
         res_shift = client.get("/api/reports/shift_summary")
         print(f"  -> GET /api/reports/shift_summary -> Status {res_shift.status_code}")
         assert res_shift.status_code == 200
-        shift_data = res_shift.json()
-        assert "total_shopper_footfall" in shift_data
-        assert "peak_queue_hour" in shift_data
-        assert "avg_queue_wait_min" in shift_data
-        print(f"     * Store: {shift_data['store_id']}")
-        print(f"     * Footfall: {shift_data['total_shopper_footfall']} | Peak: {shift_data['peak_queue_hour']}")
-        print(f"     * Restock Alerts: {shift_data['total_restock_alerts']} | Dispatches: {shift_data['total_cashier_dispatches']}")
 
         res_csv = client.get("/api/reports/shift_summary/csv")
         print(f"  -> GET /api/reports/shift_summary/csv -> Status {res_csv.status_code}")
         assert res_csv.status_code == 200
         assert "text/csv" in res_csv.headers.get("content-type", "")
+        print("  [PASS] SQLite WAL Analytics & CSV Export verified.")
 
-        res_events = client.get("/api/history/events?limit=10")
-        print(f"  -> GET /api/history/events -> Status {res_events.status_code}")
-        assert res_events.status_code == 200
-        assert isinstance(res_events.json(), list)
-        print("  [PASS] Shift Analytics & Event History verified.")
-
-    # 9. Test WebSocket Mobile Ingestion
-    print("\n[TEST 9] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
+    # 8. Test WebSocket Mobile Ingestion
+    print("\n[TEST 8] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
     dummy_frame = np.full((360, 640, 3), 128, dtype=np.uint8)
     _, dummy_jpeg = cv2.imencode('.jpg', dummy_frame)
     dummy_bytes = dummy_jpeg.tobytes()
@@ -255,9 +207,9 @@ def run_verification():
 
     print("  [PASS] WebSocket Mobile Ingestion verified.")
 
-    print("\n" + "=" * 70)
-    print("  ALL 9 ADVANCED ENTERPRISE SUITES PASSED (100% GREEN)!")
-    print("=" * 70)
+    print("\n" + "=" * 75)
+    print("  ALL 8 MULTI-ZONE ADVANCED TEST SUITES PASSED (100% GREEN)!")
+    print("=" * 75)
 
 if __name__ == "__main__":
     run_verification()

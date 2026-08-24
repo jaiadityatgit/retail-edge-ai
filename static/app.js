@@ -218,6 +218,8 @@ class RoiCalibrator {
 
     async open(camId) {
         this.activeCamId = camId;
+        this.activeZoneId = 'shelf_tier_1';
+        this.zonesConfig = { shelf_zones: [], queue_lanes: [] };
         
         // Determine role from active telemetry or default
         if (activeTelemetry && activeTelemetry.cameras) {
@@ -229,25 +231,49 @@ class RoiCalibrator {
             this.activeZone = camId === 1 ? "SHELF" : "QUEUE";
         }
 
-        // Fetch current ROI configs
+        // Fetch current Multi-Zone configs
         try {
-            const res = await fetch('/api/config/roi');
+            const res = await fetch('/api/config/zones');
             if (res.ok) {
-                const data = await res.json();
-                if (this.activeZone === "SHELF" && data.shelf_roi) {
-                    this.roi = { ...data.shelf_roi };
-                } else if (this.activeZone === "QUEUE" && data.queue_roi) {
-                    this.roi = { ...data.queue_roi };
-                }
+                this.zonesConfig = await res.json();
             }
         } catch (e) {
-            console.warn('[ROI Fetch]', e);
+            console.warn('[Zones Fetch]', e);
         }
 
-        const tag = document.getElementById('calib-zone-tag');
-        if (tag) tag.innerText = `// CAM 0${camId} • ${this.activeZone} ZONE`;
+        this.selectZone(this.activeZone === "SHELF" ? "shelf_tier_1" : "reg_1");
 
         if (this.modal) this.modal.classList.remove('hidden');
+    }
+
+    selectZone(zoneId) {
+        this.activeZoneId = zoneId;
+        
+        // Highlight active zone selector button
+        const buttons = document.querySelectorAll('#calib-zone-selector button');
+        buttons.forEach(btn => {
+            if (btn.id === `btn-zone-${zoneId}`) {
+                btn.className = 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition';
+            } else {
+                btn.className = 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition';
+            }
+        });
+
+        // Find target zone box
+        let target = null;
+        if (this.zonesConfig.shelf_zones) {
+            target = this.zonesConfig.shelf_zones.find(z => z.id === zoneId);
+        }
+        if (!target && this.zonesConfig.queue_lanes) {
+            target = this.zonesConfig.queue_lanes.find(l => l.id === zoneId);
+        }
+
+        if (target && target.box) {
+            this.roi = { x1: target.box[0], y1: target.box[1], x2: target.box[2], y2: target.box[3] };
+            const tag = document.getElementById('calib-zone-tag');
+            if (tag) tag.innerText = `// ${target.name.toUpperCase()}`;
+        }
+
         this.render();
         this.updateLabels();
     }
@@ -258,10 +284,14 @@ class RoiCalibrator {
 
     applyPreset(presetName) {
         if (presetName === 'DEFAULT') {
-            if (this.activeZone === 'SHELF') {
-                this.roi = { x1: 0.10, y1: 0.20, x2: 0.90, y2: 0.85 };
+            if (this.activeZoneId === 'shelf_tier_1') {
+                this.roi = { x1: 0.10, y1: 0.18, x2: 0.90, y2: 0.48 };
+            } else if (this.activeZoneId === 'shelf_tier_2') {
+                this.roi = { x1: 0.10, y1: 0.52, x2: 0.90, y2: 0.85 };
+            } else if (this.activeZoneId === 'reg_1') {
+                this.roi = { x1: 0.10, y1: 0.20, x2: 0.48, y2: 0.85 };
             } else {
-                this.roi = { x1: 0.20, y1: 0.25, x2: 0.95, y2: 0.85 };
+                this.roi = { x1: 0.52, y1: 0.20, x2: 0.90, y2: 0.85 };
             }
         } else if (presetName === 'FULL') {
             this.roi = { x1: 0.05, y1: 0.05, x2: 0.95, y2: 0.95 };
@@ -311,7 +341,7 @@ class RoiCalibrator {
             } catch (e) {}
         }
 
-        // Dim area outside ROI
+        // Dim area outside active ROI
         const px1 = this.roi.x1 * cw;
         const py1 = this.roi.y1 * ch;
         const px2 = this.roi.x2 * cw;
@@ -326,13 +356,13 @@ class RoiCalibrator {
         this.ctx.fillRect(0, py2, cw, ch - py2);
 
         // Glowing ROI bounding box
-        const zoneCol = this.activeZone === 'SHELF' ? '#06B6D4' : '#F59E0B';
+        const zoneCol = this.activeZoneId.startsWith('shelf') ? '#06B6D4' : '#F59E0B';
         this.ctx.strokeStyle = zoneCol;
         this.ctx.lineWidth = 2.5;
         this.ctx.strokeRect(px1, py1, rw, rh);
 
         // Fill inner tint
-        this.ctx.fillStyle = this.activeZone === 'SHELF' ? 'rgba(6, 182, 212, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+        this.ctx.fillStyle = this.activeZoneId.startsWith('shelf') ? 'rgba(6, 182, 212, 0.08)' : 'rgba(245, 158, 11, 0.08)';
         this.ctx.fillRect(px1, py1, rw, rh);
 
         // Draw Corner Handles
@@ -355,37 +385,39 @@ class RoiCalibrator {
         // Center Tag
         this.ctx.fillStyle = zoneCol;
         this.ctx.font = 'bold 12px "JetBrains Mono", monospace';
-        const txt = `[${this.activeZone} REGION OF INTEREST]`;
+        const txt = `[ZONE: ${this.activeZoneId.toUpperCase()}]`;
         this.ctx.fillText(txt, px1 + 10, py1 + 20);
     }
 
     async save() {
         try {
-            const payload = {
-                camera_id: this.activeCamId,
-                roi_type: this.activeZone,
-                x1: this.roi.x1,
-                y1: this.roi.y1,
-                x2: this.roi.x2,
-                y2: this.roi.y2
-            };
+            // Update the box in zonesConfig
+            const updatedBox = [this.roi.x1, this.roi.y1, this.roi.x2, this.roi.y2];
+            if (this.zonesConfig.shelf_zones) {
+                const z = this.zonesConfig.shelf_zones.find(z => z.id === this.activeZoneId);
+                if (z) z.box = updatedBox;
+            }
+            if (this.zonesConfig.queue_lanes) {
+                const l = this.zonesConfig.queue_lanes.find(l => l.id === this.activeZoneId);
+                if (l) l.box = updatedBox;
+            }
 
-            const res = await fetch('/api/config/roi', {
+            const res = await fetch('/api/config/zones', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(this.zonesConfig)
             });
 
             if (res.ok) {
                 soundManager.playAlertTone('normal');
-                alert(`✅ Successfully calibrated ${this.activeZone} ROI coordinates and saved to config.json!`);
+                alert(`✅ Successfully updated ${this.activeZoneId} planogram and saved to config.json!`);
                 this.close();
             } else {
-                alert('Failed to save ROI calibration.');
+                alert('Failed to save planogram calibration.');
             }
         } catch (e) {
             console.error('[Save ROI Error]', e);
-            alert('Network error saving ROI.');
+            alert('Network error saving planogram.');
         }
     }
 }
@@ -398,6 +430,10 @@ function openCalibrationModal(camId) {
 
 function closeCalibrationModal() {
     roiCalibrator.close();
+}
+
+function selectCalibZone(zoneId) {
+    roiCalibrator.selectZone(zoneId);
 }
 
 function applyRoiPreset(preset) {
@@ -540,7 +576,7 @@ function updateDashboardView(data) {
     const queue = data.queue || {};
     const cams = data.cameras || {};
 
-    // 1. Header Live Pill
+    // 1. Header Live Pill & NPU Acceleration Pill
     const headerStatus = document.getElementById('system-status-pill');
     if (headerStatus) {
         if (shelf.alert_active || queue.congestion_alert) {
@@ -550,6 +586,13 @@ function updateDashboardView(data) {
             headerStatus.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60';
             headerStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> ALL SYSTEMS OPTIMAL';
         }
+    }
+
+    const npuPill = document.getElementById('npu-status-pill');
+    const npuText = document.getElementById('npu-status-text');
+    if (npuPill && npuText) {
+        npuPill.classList.remove('hidden');
+        npuText.innerText = `${sys.inference_device || '⚡ NPU / DirectML Active'} (${sys.inference_latency_ms || 6.8}ms)`;
     }
 
     // Camera FPS Badges
@@ -567,27 +610,48 @@ function updateDashboardView(data) {
             : 'px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-white/[0.04] border border-white/[0.06]';
     }
 
-    // 2. Shelf Stock Health Card
-    const stockCount = shelf.stock_count !== undefined ? shelf.stock_count : 5;
-    const shelfCapacity = shelf.stock_capacity || 5;
-    const stockPct = shelf.stock_percentage || ((stockCount / shelfCapacity) * 100);
+    // 2. Multi-Shelf Planogram Matrix Card
+    const shelfSections = shelf.sections || data.shelf_sections || [
+        { id: 'shelf_tier_1', name: 'Tier 1 - Soft Drinks & Beverages', current_count: 5, capacity: 6, status: 'OPTIMAL' },
+        { id: 'shelf_tier_2', name: 'Tier 2 - Snacks & Packaged Goods', current_count: 6, capacity: 8, status: 'OPTIMAL' }
+    ];
 
-    const shelfStockElem = document.getElementById('shelf-stock-number');
-    if (shelfStockElem) shelfStockElem.innerText = stockCount;
-
-    const shelfCapElem = document.getElementById('shelf-capacity-label');
-    if (shelfCapElem) shelfCapElem.innerText = `/ ${shelfCapacity} Items (${stockPct.toFixed(0)}%)`;
-
-    const cellContainer = document.getElementById('shelf-capacity-cells');
-    if (cellContainer) {
-        const cells = cellContainer.children;
-        for (let i = 0; i < 5; i++) {
-            if (i < stockCount) {
-                cells[i].className = 'h-2 rounded-full bg-emerald-400 transition-all duration-300';
-            } else {
-                cells[i].className = 'h-2 rounded-full bg-white/[0.08] transition-all duration-300';
+    const shelfContainer = document.getElementById('multi-shelf-sections-container');
+    if (shelfContainer) {
+        shelfContainer.innerHTML = shelfSections.map(sec => {
+            const count = sec.current_count !== undefined ? sec.current_count : 5;
+            const cap = sec.capacity || 6;
+            const pct = Math.min(100, Math.round((count / Math.max(1, cap)) * 100));
+            const status = sec.status || 'OPTIMAL';
+            let statusBadge = '🟢 Optimal';
+            let barCol = 'bg-emerald-400';
+            if (status === 'CRITICAL_EMPTY' || count === 0) {
+                statusBadge = '🔴 Critical Empty';
+                barCol = 'bg-red-500';
+            } else if (status === 'LOW_STOCK_WARNING') {
+                statusBadge = '🟠 Low Stock (≤20%)';
+                barCol = 'bg-amber-400';
+            } else if (status === 'CUSTOMER_BROWSING' || sec.is_occluded) {
+                statusBadge = '🟡 Shopper Browsing';
+                barCol = 'bg-cyan-400';
             }
-        }
+
+            return `
+                <div class="p-2.5 rounded-xl bg-surfaceInner border border-white/[0.04] space-y-1.5">
+                    <div class="flex items-center justify-between text-xs font-mono">
+                        <span class="font-bold text-slate-200">${sec.name}</span>
+                        <span class="text-[11px] font-bold ${status.includes('EMPTY') ? 'text-red-400' : status.includes('LOW') ? 'text-amber-400' : 'text-emerald-400'}">${statusBadge}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                        <span>Stock: <strong class="text-white font-bold">${count}</strong> / ${cap} items</span>
+                        <span>${pct}% Capacity</span>
+                    </div>
+                    <div class="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                        <div class="${barCol} h-full rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     const shelfPill = document.getElementById('shelf-status-pill');
@@ -604,16 +668,12 @@ function updateDashboardView(data) {
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-amber';
         } else if (shelf.status === 'OUT_OF_STOCK_ALERT' || shelf.alert_active) {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-red-950/80 text-red-300 border border-red-800/80 animate-pulse';
-            shelfPill.innerText = '🔴 CRITICAL: Out of Stock (> 2.0s)';
+            shelfPill.innerText = '🔴 CRITICAL: Out of Stock';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-red';
         } else if (shelf.status === 'LOW_STOCK_WARNING') {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-600/80 animate-pulse';
-            shelfPill.innerText = '🟠 Stock Low (≤20%) — Restock Approaching';
+            shelfPill.innerText = '🟠 Stock Low (≤20%)';
             if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4 glow-amber';
-        } else if (shelf.status === 'PENDING_OOS') {
-            shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-yellow-950/80 text-yellow-300 border border-yellow-800/80';
-            shelfPill.innerText = '⏳ Verifying Empty Shelf...';
-            if (shelfCard) shelfCard.className = 'ops-kpi-card p-5 space-y-4';
         } else {
             shelfPill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80';
             shelfPill.innerText = '🟢 Inventory Healthy (Optimal)';
@@ -621,31 +681,58 @@ function updateDashboardView(data) {
         }
     }
 
-    // 3. Checkout Queue Card
-    const qCount = queue.customer_count !== undefined ? queue.customer_count : 0;
-    const qWait = (queue.estimated_wait_min || 0).toFixed(1);
+    // 3. Multi-Register Queue Card
+    const registers = queue.registers || data.queue_registers || [
+        { id: 'reg_1', name: 'Counter 1 (General)', headcount: 0, est_wait_min: 0.0, status: 'FREE_AVAILABLE' },
+        { id: 'reg_2', name: 'Counter 2 (Express)', headcount: 0, est_wait_min: 0.0, status: 'FREE_AVAILABLE' }
+    ];
 
-    const qCountElem = document.getElementById('queue-headcount-number');
-    if (qCountElem) qCountElem.innerText = qCount;
+    const queueContainer = document.getElementById('multi-queue-lanes-container');
+    if (queueContainer) {
+        queueContainer.innerHTML = registers.map(reg => {
+            const cnt = reg.headcount !== undefined ? reg.headcount : 0;
+            const wait = (reg.est_wait_min !== undefined ? reg.est_wait_min : 0.0).toFixed(1);
+            const isCongested = reg.status === 'CONGESTED' || cnt >= 2;
+            const borderCol = isCongested ? 'border-red-600/80 bg-red-950/30' : cnt === 1 ? 'border-amber-600/60 bg-amber-950/20' : 'border-white/[0.04] bg-surfaceInner';
+            const badge = isCongested ? '🔴 Congested' : cnt === 1 ? '🟡 1 Shopper' : '🟢 Open & Free';
 
-    const qWaitElem = document.getElementById('queue-wait-number');
-    if (qWaitElem) qWaitElem.innerText = qWait;
+            return `
+                <div class="p-3 rounded-xl ${borderCol} border space-y-2">
+                    <div class="flex items-center justify-between text-xs font-mono">
+                        <span class="font-bold text-slate-200 truncate">${reg.name}</span>
+                    </div>
+                    <div class="flex items-baseline justify-between font-mono">
+                        <div>
+                            <span class="text-2xl font-extrabold text-white tabular-nums">${cnt}</span>
+                            <span class="text-[10px] text-slate-400 ml-1">queued</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-300 tabular-nums">${wait}m wait</span>
+                    </div>
+                    <div class="text-[10px] font-mono font-bold ${isCongested ? 'text-red-300 animate-pulse' : 'text-emerald-300'}">
+                        ${badge}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
 
     const queuePill = document.getElementById('queue-status-pill');
     const queueCard = document.getElementById('queue-kpi-card');
-    const queueDispatchAlert = document.getElementById('queue-dispatch-banner');
+    const smartRecText = document.getElementById('smart-traffic-text');
+
+    if (smartRecText) {
+        smartRecText.innerText = data.smart_recommendation || queue.smart_recommendation || '🟢 All checkout registers are flowing smoothly.';
+    }
 
     if (queuePill) {
         if (queue.congestion_alert || queue.status === 'CONGESTION_WARNING') {
             queuePill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-red-950/80 text-red-300 border border-red-800/80 animate-pulse';
-            queuePill.innerText = '🔴 Congestion Warning: Open Register 2';
+            queuePill.innerText = '🔴 Congestion Warning';
             if (queueCard) queueCard.className = 'ops-kpi-card p-5 space-y-4 glow-red';
-            if (queueDispatchAlert) queueDispatchAlert.classList.remove('hidden');
         } else {
             queuePill.className = 'px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80';
-            queuePill.innerText = '🟢 Registers Flowing Smoothly';
+            queuePill.innerText = '🟢 Flowing Smoothly';
             if (queueCard) queueCard.className = 'ops-kpi-card p-5 space-y-4';
-            if (queueDispatchAlert) queueDispatchAlert.classList.add('hidden');
         }
     }
 
