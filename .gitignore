@@ -219,3 +219,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local TLS Certificates
+*.pem
+cert.pem
+key.pem
