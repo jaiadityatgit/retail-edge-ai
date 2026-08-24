@@ -370,7 +370,13 @@
                         </h3>
                         <span id="unread-alert-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">1</span>
                     </div>
-                    <button onclick="clearAlertFeed()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition">Clear</button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleAudioChimes()" id="feed-audio-toggle-btn" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-[10px] font-mono font-bold text-slate-200 transition">
+                            <i data-lucide="volume-2" id="feed-audio-toggle-icon" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span id="feed-audio-toggle-label">Mute Sounds</span>
+                        </button>
+                        <button onclick="clearAlertFeed()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition">Clear</button>
+                    </div>
                 </div>
 
                 <div id="staff-alert-feed" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">

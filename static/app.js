@@ -45,18 +45,40 @@ class SoundAlertManager {
         const btn = document.getElementById('audio-toggle-btn');
         const icon = document.getElementById('audio-toggle-icon');
         const label = document.getElementById('audio-toggle-label');
+
+        const feedBtn = document.getElementById('feed-audio-toggle-btn');
+        const feedIcon = document.getElementById('feed-audio-toggle-icon');
+        const feedLabel = document.getElementById('feed-audio-toggle-label');
+
         if (label && icon) {
             if (this.muted) {
                 label.innerText = 'Audio: Muted';
                 icon.setAttribute('data-lucide', 'volume-x');
-                icon.className = 'w-4 h-4 text-slate-500';
+                icon.className = 'w-4 h-4 text-red-400';
+                if (btn) btn.className = 'flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/80 text-xs font-mono font-bold text-red-300 transition tactile-btn';
             } else {
                 label.innerText = 'Audio: On';
                 icon.setAttribute('data-lucide', 'volume-2');
                 icon.className = 'w-4 h-4 text-emerald-400';
+                if (btn) btn.className = 'flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn';
             }
-            if (window.lucide) lucide.createIcons();
         }
+
+        if (feedLabel && feedIcon) {
+            if (this.muted) {
+                feedLabel.innerText = 'Unmute Sounds';
+                feedIcon.setAttribute('data-lucide', 'volume-x');
+                feedIcon.className = 'w-3.5 h-3.5 text-red-400';
+                if (feedBtn) feedBtn.className = 'flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-950/50 hover:bg-red-900 border border-red-800 text-[10px] font-mono font-bold text-red-300 transition';
+            } else {
+                feedLabel.innerText = 'Mute Sounds';
+                feedIcon.setAttribute('data-lucide', 'volume-2');
+                feedIcon.className = 'w-3.5 h-3.5 text-emerald-400';
+                if (feedBtn) feedBtn.className = 'flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-[10px] font-mono font-bold text-slate-200 transition';
+            }
+        }
+
+        if (window.lucide) lucide.createIcons();
     }
 
     playAlertTone(type = 'normal') {
