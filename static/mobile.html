@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>RetailSense Mobile — Edge Ingest Camera</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#090B10',
+                        card: '#121622',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #090B10;
+            color: #F8FAFC;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 bg-obsidian text-slate-100 font-sans">
+
+    <!-- TOP MOBILE BAR -->
+    <header class="flex items-center justify-between p-3.5 rounded-2xl bg-card border border-white/[0.08] shadow-lg">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/40">
+                <i data-lucide="smartphone" class="w-4 h-4"></i>
+            </div>
+            <div>
+                <h1 class="text-xs font-bold uppercase tracking-wider text-white">RetailSense Mobile</h1>
+                <p class="text-[10px] text-slate-400 font-mono">Secondary Stream Ingest</p>
+            </div>
+        </div>
+
+        <div id="ws-status-pill" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="ws-status-text">CONNECTING...</span>
+        </div>
+    </header>
+
+    <!-- CENTER: VIDEO VIEWPORT -->
+    <main class="my-auto space-y-3">
+        <div class="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl flex items-center justify-center">
+            
+            <!-- Video preview element -->
+            <video id="webcam-preview" autoplay playsinline muted class="w-full h-full object-cover"></video>
+
+            <!-- Hidden canvas for binary JPEG extraction -->
+            <canvas id="capture-canvas" width="640" height="360" class="hidden"></canvas>
+
+            <!-- Live HUD Tag -->
+            <div class="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-cyan-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                <span>REC • 640x360</span>
+            </div>
+
+            <!-- FPS & Latency Counter -->
+            <div class="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-mono text-emerald-300 tabular-nums">
+                <span id="mobile-fps">0.0</span> FPS
+            </div>
+
+            <!-- Permission / Fallback prompt -->
+            <div id="permission-prompt" class="absolute inset-0 bg-obsidian/95 flex flex-col items-center justify-center p-6 text-center">
+                <i data-lucide="camera" class="w-10 h-10 text-cyan-400 mb-3 animate-bounce"></i>
+                <h3 class="text-sm font-bold text-white">Camera Access Required</h3>
+                <p class="text-xs text-slate-400 mt-1 max-w-xs">
+                    Allow camera access to stream your smartphone feed directly to the Edge Gateway.
+                </p>
+                <button onclick="initCamera()" class="mt-4 px-5 py-2 rounded-full bg-cyan-500 text-obsidian font-bold text-xs shadow-lg active:scale-95 transition">
+                    Enable Camera
+                </button>
+            </div>
+        </div>
+
+        <!-- Telemetry Details -->
+        <div class="p-3.5 rounded-2xl bg-card border border-white/[0.06] text-xs font-mono space-y-1.5">
+            <div class="flex justify-between text-slate-400">
+                <span>Protocol:</span>
+                <span class="text-cyan-400 font-bold">WebSocket Binary (JPEG Blob)</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+                <span>Transmission Target:</span>
+                <span id="target-ip" class="text-slate-200">ws://gateway/ws/mobile_upload</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+                <span>Data Egress:</span>
+                <span class="text-emerald-400 font-bold">Local Wi-Fi Only (0 KB/s Cloud)</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- BOTTOM CONTROLS -->
+    <footer class="space-y-2">
+        <button onclick="flipCamera()" class="w-full py-3.5 rounded-2xl bg-card hover:bg-slate-800 border border-white/10 font-bold text-xs text-slate-200 flex items-center justify-center gap-2 active:scale-98 transition shadow-lg">
+            <i data-lucide="refresh-cw" class="w-4 h-4 text-cyan-400"></i>
+            <span>Switch Camera (Front / Rear)</span>
+        </button>
+
+        <p class="text-[10px] text-center text-slate-500 font-mono">
+            RetailSense OS • Qualcomm® QCS6490 Ready
+        </p>
+    </footer>
+
+    <!-- JAVASCRIPT STREAMING LOGIC -->
+    <script>
+        lucide.createIcons();
+
+        const video = document.getElementById('webcam-preview');
+        const canvas = document.getElementById('capture-canvas');
+        const ctx = canvas.getContext('2d');
+        let currentFacingMode = "environment"; // Rear camera by default
+        let ws = null;
+        let stream = null;
+        let isStreaming = false;
+
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+
+        document.getElementById('target-ip').innerText = `ws://${window.location.host}/ws/mobile_upload`;
+
+        // 1. Initialize WebSocket Connection
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/mobile_upload`;
+            
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => {
+                console.log('[WebSocket] Connected to Edge Gateway');
+                const pill = document.getElementById('ws-status-pill');
+                pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60';
+                document.getElementById('ws-status-text').innerText = 'TRANSMITTING';
+                startStreamingFrames();
+            };
+
+            ws.onclose = () => {
+                console.log('[WebSocket] Disconnected. Retrying in 2s...');
+                const pill = document.getElementById('ws-status-pill');
+                pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60';
+                document.getElementById('ws-status-text').innerText = 'RECONNECTING';
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = (err) => {
+                console.error('[WebSocket Error]', err);
+                ws.close();
+            };
+        }
+
+        // 2. Initialize Camera Stream
+        async function initCamera() {
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 640 },
+                        height: { ideal: 360 }
+                    },
+                    audio: false
+                });
+
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    document.getElementById('permission-prompt').classList.add('hidden');
+                    if (!ws || ws.readyState !== WebSocket.OPEN) {
+                        connectWebSocket();
+                    } else {
+                        startStreamingFrames();
+                    }
+                };
+            } catch (err) {
+                console.error('[Camera Error]', err);
+                alert('Could not access camera: ' + err.message);
+            }
+        }
+
+        // 3. Binary Frame Transmission Loop
+        function startStreamingFrames() {
+            if (isStreaming) return;
+            isStreaming = true;
+
+            const targetPeriod = 1000 / 20; // 20 FPS
+
+            function sendFrame() {
+                if (!isStreaming) return;
+
+                if (ws && ws.readyState === WebSocket.OPEN && video.readyState === video.HAVE_ENOUGH_DATA) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        if (blob && ws && ws.readyState === WebSocket.OPEN) {
+                            blob.arrayBuffer().then(buffer => {
+                                ws.send(buffer);
+                                frameCount++;
+                            });
+                        }
+                    }, 'image/jpeg', 0.65);
+                }
+
+                // Update FPS calculation
+                const now = performance.now();
+                if (now - lastFpsTime >= 1000) {
+                    const fps = (frameCount * 1000) / (now - lastFpsTime);
+                    document.getElementById('mobile-fps').innerText = fps.toFixed(1);
+                    frameCount = 0;
+                    lastFpsTime = now;
+                }
+
+                setTimeout(sendFrame, targetPeriod);
+            }
+
+            sendFrame();
+        }
+
+        // 4. Flip Camera
+        function flipCamera() {
+            currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+            initCamera();
+        }
+
+        // Auto-start camera on load
+        window.addEventListener('DOMContentLoaded', () => {
+            initCamera();
+        });
+    </script>
+</body>
+</html>

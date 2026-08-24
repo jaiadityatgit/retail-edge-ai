@@ -1,11 +1,12 @@
-# EdgeRetail AI // SIH26179
-> **On-Device Retail Intelligence & Vision Analytics Platform for Raspberry Pi 5 & Edge Appliances**  
-> *100% Offline | Zero-Cloud Video Leakage | DPDP Act 2023 Compliant | Ultra-Low Latency (<25ms)*
+# RetailSense OS // EdgeRetail AI (SIH26179)
+> **Dual-Camera Edge Vision Intelligence & Autonomous Store Operations Platform**  
+> *Target Silicon: Qualcomm® QCS6490 / RB3 Gen 2, Raspberry Pi 5 & NVIDIA Edge Gateways*  
+> *100% Offline | Zero-Cloud Video Leakage | DPDP Act 2023 Compliant | GPU CUDA FP16 & Mobile Ingest*
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-00ffff.svg)](https://docs.ultralytics.com)
-[![Target RPi 5](https://img.shields.io/badge/Target-Raspberry%20Pi%205%20(ARM64)-c51a4a.svg)](https://www.raspberrypi.com/products/raspberry-pi-5/)
+[![Target Silicon](https://img.shields.io/badge/Target-Qualcomm%C2%AE%20QCS6490%20%2F%20RPi%205-c51a4a.svg)](https://www.qualcomm.com/products/internet-of-things/industrial/building-enterprise/qcs6490)
 [![DPDP Compliant](https://img.shields.io/badge/DPDP%202023-100%25%20Compliant%20(0%20KB%2Fs)-10b981.svg)](#privacy-by-design--dpdp-act-2023-compliance)
 
 ---

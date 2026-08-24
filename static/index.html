@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>RetailOps AI // Store #104 — On-Device Retail Operations Console</title>
+    <title>RetailSense OS // EdgeRetail AI — Store Operations Console</title>
     
     <!-- Google Fonts: Plus Jakarta Sans + JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,9 +25,9 @@
                         mono: ['"JetBrains Mono"', 'monospace'],
                     },
                     colors: {
-                        canvas: '#0B0E14',
-                        panel: '#141A26',
-                        panelInner: '#0D111A',
+                        obsidian: '#080B11',
+                        surfaceCard: '#111622',
+                        surfaceInner: '#0B0F18',
                         brand: {
                             cyan: '#06B6D4',
                             emerald: '#10B981',
@@ -54,41 +54,36 @@
             text-rendering: optimizeLegibility;
         }
         body {
-            background-color: #0B0E14;
+            background-color: #080B11;
             color: #F8FAFC;
             font-feature-settings: "cv02", "cv03", "cv04", "cv11";
         }
         .tabular-nums {
             font-variant-numeric: tabular-nums;
         }
-        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 5px;
             height: 5px;
         }
         ::-webkit-scrollbar-track {
-            background: #0B0E14;
+            background: #080B11;
         }
         ::-webkit-scrollbar-thumb {
             background: #1E2538;
             border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
+        /* Enterprise Glass Card */
+        .ops-kpi-card {
+            background: rgba(17, 22, 34, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(20px);
+            border-radius: 1.25rem;
+            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.65);
+            transition: border-color 200ms ease, box-shadow 200ms ease;
         }
-        /* Refined Card & Panel Architecture */
-        .ops-card {
-            background: rgba(20, 26, 38, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            backdrop-filter: blur(16px);
-            border-radius: 1rem;
-            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
-            transition: border-color 150ms ease, box-shadow 150ms ease;
+        .ops-kpi-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
         }
-        .ops-card:hover {
-            border-color: rgba(255, 255, 255, 0.1);
-        }
-        /* Tactile Button Physics */
         .tactile-btn {
             transition-property: transform, background-color, border-color, box-shadow;
             transition-duration: 150ms;
@@ -97,84 +92,73 @@
         .tactile-btn:active {
             transform: scale(0.97);
         }
-        /* Dynamic Glow Shaders */
+        /* Glow Accents */
         .glow-red {
-            box-shadow: 0 0 25px -3px rgba(244, 63, 94, 0.35);
+            box-shadow: 0 0 30px -4px rgba(244, 63, 94, 0.4);
             border-color: rgba(244, 63, 94, 0.6) !important;
         }
         .glow-amber {
-            box-shadow: 0 0 25px -3px rgba(245, 158, 11, 0.3);
+            box-shadow: 0 0 30px -4px rgba(245, 158, 11, 0.35);
             border-color: rgba(245, 158, 11, 0.5) !important;
         }
         .glow-green {
-            box-shadow: 0 0 25px -3px rgba(16, 185, 129, 0.25);
-            border-color: rgba(16, 185, 129, 0.4) !important;
+            box-shadow: 0 0 30px -4px rgba(16, 185, 129, 0.3);
+            border-color: rgba(16, 185, 129, 0.45) !important;
         }
     </style>
 </head>
-<body class="min-h-screen bg-canvas text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
+<body class="min-h-screen bg-obsidian text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
 
-    <!-- Ambient Subtle Light Mesh Backdrop -->
+    <!-- Ambient Illumination Backdrop -->
     <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div class="absolute top-[-5%] left-1/3 w-[700px] h-[350px] bg-cyan-500/[0.03] rounded-full blur-[160px]"></div>
-        <div class="absolute bottom-[-5%] right-1/4 w-[600px] h-[350px] bg-indigo-500/[0.03] rounded-full blur-[180px]"></div>
+        <div class="absolute top-[-5%] left-1/4 w-[750px] h-[380px] bg-cyan-500/[0.04] rounded-full blur-[170px]"></div>
+        <div class="absolute bottom-[-5%] right-1/4 w-[650px] h-[380px] bg-indigo-500/[0.04] rounded-full blur-[180px]"></div>
     </div>
 
     <!-- MAIN CONTAINER -->
-    <div class="relative z-10 max-w-[1780px] mx-auto p-4 lg:p-6 space-y-4">
+    <div class="relative z-10 max-w-[1780px] mx-auto p-4 lg:p-6 space-y-5">
 
-        <!-- A. TOP NAVIGATION BAR (STORE OVERVIEW) -->
-        <header class="flex flex-wrap items-center justify-between gap-4 ops-card px-5 py-3.5">
+        <!-- A. EXECUTIVE HEADER BAR -->
+        <header class="flex flex-wrap items-center justify-between gap-4 ops-kpi-card px-6 py-4">
             
-            <!-- Left: Store Identity & Active Camera -->
-            <div class="flex items-center gap-3.5">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-white/20 shrink-0">
-                    <i data-lucide="store" class="w-5 h-5 text-white"></i>
+            <!-- Left: Branding & Status -->
+            <div class="flex items-center gap-4">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 ring-1 ring-white/20 shrink-0">
+                    <i data-lucide="layers" class="w-6 h-6 text-white"></i>
                 </div>
                 <div>
                     <div class="flex items-center gap-2.5">
-                        <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-1.5">
-                            EdgeRetail AI <span class="text-cyan-400 font-mono text-xs font-bold">// RetailOps</span> <span class="text-slate-400 font-normal text-xs">• Store #104 (FMCG & Beverages)</span>
+                        <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+                            RetailSense OS <span class="text-cyan-400 font-mono text-xs font-bold">// EdgeRetail AI</span>
                         </h1>
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-sm">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            CCTV 01 • ACTIVE (<span id="header-fps">28.0</span> FPS)
-                        </span>
+                        <span class="text-xs text-slate-400 font-normal">• Store #104</span>
+                        <div id="system-status-pill" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            ALL SYSTEMS OPTIMAL
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-400 font-normal">Real-Time Shelf Stock & Checkout Queue Intelligence Engine</p>
+                    <p class="text-xs text-slate-400 font-normal mt-0.5">Dual-Stream Autonomous Edge Vision & Spatial CSIM Operations</p>
                 </div>
             </div>
 
-            <!-- Center: Privacy & Silicon Assurance -->
-            <div class="hidden xl:flex items-center gap-2 px-4 py-1.5 rounded-full bg-panelInner/90 border border-white/[0.06] text-xs font-mono text-emerald-300 shadow-sm">
-                <i data-lucide="lock" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span class="font-semibold text-slate-200">100% On-Device</span>
-                <span class="text-slate-600">•</span>
-                <span>DPDP 2023 Compliant</span>
-                <span class="text-slate-600">•</span>
-                <span class="text-emerald-400 font-bold">0.0 KB/s Cloud Uplink</span>
-            </div>
-
-            <!-- Right: Clock, Alerts & Pitch Deck -->
-            <div class="flex items-center gap-3">
+            <!-- Right: Action Buttons & Navigation -->
+            <div class="flex flex-wrap items-center gap-3">
                 
-                <!-- Live Digital Clock -->
-                <div class="px-3.5 py-1.5 rounded-xl bg-panelInner border border-white/[0.06] text-xs font-mono text-slate-300 flex items-center gap-2">
-                    <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
-                    <span id="live-clock" class="tabular-nums font-semibold">--:--:-- --</span>
-                </div>
+                <!-- Connect Mobile Phone Button -->
+                <button onclick="toggleMobileModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-xs font-bold text-cyan-200 transition tactile-btn shadow-md shadow-cyan-950/30">
+                    <i data-lucide="smartphone" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Connect Smartphone Ingest</span>
+                </button>
 
-                <!-- Notification Bell -->
-                <div class="relative">
-                    <button class="w-9 h-9 rounded-xl bg-panelInner hover:bg-slate-800 border border-white/[0.06] flex items-center justify-center text-slate-300 transition tactile-btn" title="Store Notifications">
-                        <i data-lucide="bell" class="w-4 h-4"></i>
-                        <span id="notification-count" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center shadow">1</span>
-                    </button>
-                </div>
+                <!-- Engineering Telemetry Drawer Toggle -->
+                <button onclick="toggleEngineeringDrawer()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn">
+                    <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i>
+                    <span>Engineering Specs ⚡</span>
+                </button>
 
                 <!-- Pitch Deck Link -->
-                <a href="/presentation" class="group flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-600/60 hover:border-indigo-400 text-xs font-bold text-indigo-200 transition-all tactile-btn shadow-md shadow-indigo-950/40">
-                    <i data-lucide="presentation" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <a href="/presentation" class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-600/60 text-xs font-bold text-indigo-200 transition tactile-btn shadow-md shadow-indigo-950/40">
+                    <i data-lucide="presentation" class="w-4 h-4 text-indigo-400"></i>
                     <span>Pitch Deck</span>
                     <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-indigo-300 transition-transform group-hover:translate-x-0.5"></i>
                 </a>
@@ -183,537 +167,350 @@
 
         </header>
 
-        <!-- B. MAIN ERGONOMIC 3-COLUMN LAYOUT (25% | 50% | 25%) -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <!-- B. EXECUTIVE TOP ROW: ACTIONABLE RETAIL KPI CARDS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            <!-- 1. LEFT SIDEBAR: CAMERAS & SPATIAL ZONE EXPLAINER (25% -> 3 Cols) -->
-            <div class="lg:col-span-3 space-y-4">
-
-                <!-- Camera Feeds Selector -->
-                <div class="ops-card p-4 space-y-3">
-                    <div class="flex items-center justify-between pb-1 border-b border-white/[0.06]">
-                        <h2 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                            <i data-lucide="video" class="w-3.5 h-3.5 text-cyan-400"></i> Camera Feeds
-                        </h2>
-                        <span class="text-[10px] font-mono text-emerald-400">1 Online</span>
-                    </div>
-
-                    <div class="space-y-2">
-                        <!-- Active Camera 01 -->
-                        <div class="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/50 flex items-center justify-between">
-                            <div class="flex items-center gap-2.5">
-                                <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                </span>
-                                <div>
-                                    <h4 class="text-xs font-bold text-white">Camera 01: FMCG Aisle</h4>
-                                    <p class="text-[10px] text-slate-400 font-mono">Overhead 1080p • Live</p>
-                                </div>
-                            </div>
-                            <span class="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-900/60 px-2 py-0.5 rounded">28 FPS</span>
+            <!-- 1. Shelf Stock Health Card -->
+            <div id="shelf-kpi-card" class="ops-kpi-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 rounded-xl bg-cyan-950/80 text-cyan-400 border border-cyan-800/50">
+                            <i data-lucide="package" class="w-5 h-5"></i>
                         </div>
-
-                        <!-- Standby Camera 02 -->
-                        <div class="p-3 rounded-xl bg-panelInner/50 border border-white/[0.04] opacity-60 flex items-center justify-between">
-                            <div class="flex items-center gap-2.5">
-                                <span class="w-2 h-2 rounded-full bg-slate-600"></span>
-                                <div>
-                                    <h4 class="text-xs font-medium text-slate-300">Camera 02: Backroom</h4>
-                                    <p class="text-[10px] text-slate-500 font-mono">Inventory Dock • Standby</p>
-                                </div>
-                            </div>
-                            <span class="text-[10px] font-mono text-slate-500 bg-white/[0.04] px-2 py-0.5 rounded">Offline</span>
+                        <div>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Shelf Stock Health</h2>
+                            <p class="text-[11px] text-slate-400">Beverages & FMCG Shelf Zone</p>
                         </div>
                     </div>
+                    <span id="shelf-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                        🟢 Fully Stocked & Optimal
+                    </span>
                 </div>
 
-                <!-- Interactive Zone Legend (Plain English) -->
-                <div class="ops-card p-4 space-y-3">
-                    <div class="flex items-center justify-between pb-1 border-b border-white/[0.06]">
-                        <h2 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                            <i data-lucide="map" class="w-3.5 h-3.5 text-cyan-400"></i> Spatial Zone Guide
-                        </h2>
-                        <span class="text-[10px] font-mono text-slate-500">Auto-Mapped</span>
+                <div class="flex items-baseline justify-between pt-1">
+                    <div class="flex items-baseline gap-2">
+                        <span id="shelf-stock-number" class="text-4xl font-extrabold font-mono text-white tabular-nums">5</span>
+                        <span id="shelf-capacity-label" class="text-sm font-mono text-slate-400">/ 5 Items (100%)</span>
                     </div>
-
-                    <div class="space-y-2.5 text-xs">
-                        
-                        <!-- Zone 1: Shelf Area -->
-                        <div class="p-3 rounded-xl bg-cyan-950/20 border border-cyan-800/30 space-y-1">
-                            <div class="flex items-center justify-between">
-                                <span class="font-bold text-cyan-300 flex items-center gap-1">
-                                    🛍️ Zone 1: Shelf Area <span class="text-[10px] text-cyan-500 font-mono">(0–40%)</span>
-                                </span>
-                            </div>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">
-                                Monitors beverage products. Automatically detects when a customer is browsing so false restock alarms are prevented.
-                            </p>
-                        </div>
-
-                        <!-- Zone 2: Transit Corridor -->
-                        <div class="p-3 rounded-xl bg-panelInner/50 border border-white/[0.04] space-y-1">
-                            <span class="font-bold text-slate-300 flex items-center gap-1">
-                                🚶 Zone 2: Transit Corridor <span class="text-[10px] text-slate-500 font-mono">(40–60%)</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">
-                                Tracks foot traffic velocity and shopper aisle traversal.
-                            </p>
-                        </div>
-
-                        <!-- Zone 3: Checkout Queue -->
-                        <div class="p-3 rounded-xl bg-amber-950/20 border border-amber-800/30 space-y-1">
-                            <span class="font-bold text-amber-300 flex items-center gap-1">
-                                💳 Zone 3: Checkout Queue <span class="text-[10px] text-amber-500 font-mono">(60–100%)</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">
-                                Measures checkout line length and predicts wait time. Automatically triggers cash counter assistance.
-                            </p>
-                        </div>
-
-                    </div>
+                    <span class="text-xs font-mono text-slate-400">CSIM Occlusion Guard: <strong class="text-emerald-400">Active</strong></span>
                 </div>
 
-                <!-- Hardware Metrics Pill Card -->
-                <div class="ops-card p-4 space-y-2 font-mono text-xs text-slate-400">
-                    <div class="flex justify-between">
-                        <span>SoC Core Temp:</span>
-                        <span id="hardware-temp" class="text-amber-300 font-bold tabular-nums">52.4°C</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Quad Cortex-A76 CPU:</span>
-                        <span id="hardware-cpu" class="text-cyan-300 font-bold tabular-nums">34.2%</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Volatile Memory:</span>
-                        <span class="text-emerald-400 font-bold">DMA-BUF (0 B Disk)</span>
+                <!-- 5-Cell Visual Capacity Progress Meter -->
+                <div class="space-y-1.5">
+                    <div class="grid grid-cols-5 gap-1.5" id="shelf-capacity-cells">
+                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
+                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
+                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
+                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
+                        <div class="h-2 rounded-full bg-emerald-400 transition-all duration-300"></div>
                     </div>
                 </div>
-
             </div>
 
-            <!-- 2. CENTER STAGE: LIVE VISION FEED & SCENARIO TESTER (50% -> 6 Cols) -->
-            <div class="lg:col-span-6 space-y-4">
-
-                <!-- Live Camera Viewport Card -->
-                <div class="ops-card p-2.5 overflow-hidden">
-                    <div class="relative bg-black aspect-video w-full rounded-xl overflow-hidden flex items-center justify-center border border-white/[0.04]">
-                        
-                        <!-- MJPEG Stream Element -->
-                        <img 
-                            id="live-video" 
-                            src="/video_feed" 
-                            alt="Live Retail Camera Stream" 
-                            class="w-full h-full object-contain"
-                            onerror="handleVideoError()"
-                            onload="handleVideoSuccess()"
-                        />
-
-                        <!-- Fallback / Loading Overlay -->
-                        <div id="video-fallback" class="absolute inset-0 bg-canvas/95 flex flex-col items-center justify-center p-6 text-center hidden">
-                            <div class="w-12 h-12 rounded-full bg-panel border border-white/10 flex items-center justify-center mb-3 animate-spin">
-                                <i data-lucide="refresh-cw" class="w-5 h-5 text-cyan-400"></i>
-                            </div>
-                            <h4 class="text-sm font-semibold text-white">Reconnecting Camera Stream...</h4>
-                            <p class="text-xs text-slate-400 mt-1 max-w-sm">
-                                Connecting to V4L2 physical camera or synthetic simulation stream.
-                            </p>
-                            <button onclick="reloadStream()" class="mt-4 px-4 py-1.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-xs font-bold text-canvas transition tactile-btn">
-                                Force Reconnect
-                            </button>
+            <!-- 2. Checkout Queue Operations Card -->
+            <div id="queue-kpi-card" class="ops-kpi-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 rounded-xl bg-amber-950/80 text-amber-400 border border-amber-800/50">
+                            <i data-lucide="users" class="w-5 h-5"></i>
                         </div>
-
-                        <!-- Floating Live Tag Overlay -->
-                        <div class="absolute bottom-3 left-3 px-3 py-1 rounded-full bg-canvas/85 backdrop-blur-md border border-white/10 text-[11px] font-mono text-cyan-300 flex items-center gap-2 shadow-lg">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span>640x360 @ 30 FPS</span>
-                            <span class="text-slate-600">|</span>
-                            <span id="floating-latency" class="tabular-nums">18.5 ms</span>
+                        <div>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Checkout Queue Operations</h2>
+                            <p class="text-[11px] text-slate-400">Register 1 Line & Bottleneck Estimator</p>
                         </div>
-
                     </div>
+                    <span id="queue-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                        🟢 Registers Flowing Smoothly
+                    </span>
                 </div>
 
-                <!-- Interactive Zone Breakdown Bar (Directly below video) -->
-                <div class="ops-card p-3.5 space-y-2">
-                    <div class="flex items-center justify-between text-xs font-mono text-slate-400 pb-1">
-                        <span class="font-bold text-slate-300 uppercase flex items-center gap-1.5">
-                            <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-cyan-400"></i> Zone Breakdown Strip
-                        </span>
-                        <span>Width Proportions (0% to 100% X)</span>
+                <div class="grid grid-cols-2 gap-4 pt-1">
+                    <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.04]">
+                        <span class="text-[10px] font-mono text-slate-400 uppercase">Headcount in Queue</span>
+                        <div class="flex items-baseline gap-1.5 mt-1">
+                            <span id="queue-headcount-number" class="text-3xl font-extrabold font-mono text-white tabular-nums">0</span>
+                            <span class="text-xs text-slate-400 font-mono">shoppers</span>
+                        </div>
                     </div>
 
-                    <!-- 3-Segment Proportional Bar -->
-                    <div class="grid grid-cols-12 gap-1.5 text-xs font-mono">
-                        <!-- Left Segment: Shelf Area (40% -> 5 Cols) -->
-                        <div id="strip-shelf" class="col-span-5 p-2.5 rounded-lg bg-cyan-950/40 border border-cyan-800/50 flex items-center justify-between">
-                            <span class="font-bold text-cyan-300 flex items-center gap-1">
-                                🛍️ Shelf <span class="text-[10px] text-cyan-500">(0–40%)</span>
-                            </span>
-                            <span id="strip-shelf-count" class="px-1.5 py-0.5 rounded bg-cyan-900/70 text-[10px] font-bold text-cyan-200 tabular-nums">5 items</span>
-                        </div>
-
-                        <!-- Middle Segment: Transit Corridor (20% -> 2 Cols) -->
-                        <div class="col-span-2 p-2.5 rounded-lg bg-panelInner border border-white/[0.04] text-center flex items-center justify-center">
-                            <span class="font-medium text-slate-400 text-[11px]">🚶 Aisle</span>
-                        </div>
-
-                        <!-- Right Segment: Checkout Queue (40% -> 5 Cols) -->
-                        <div id="strip-queue" class="col-span-5 p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/50 flex items-center justify-between">
-                            <span class="font-bold text-amber-300 flex items-center gap-1">
-                                💳 Queue <span class="text-[10px] text-amber-500">(60–100%)</span>
-                            </span>
-                            <span id="strip-queue-count" class="px-1.5 py-0.5 rounded bg-amber-900/70 text-[10px] font-bold text-amber-200 tabular-nums">0 waiting</span>
+                    <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.04]">
+                        <span class="text-[10px] font-mono text-slate-400 uppercase">Estimated Wait Time</span>
+                        <div class="flex items-baseline gap-1.5 mt-1">
+                            <span id="queue-wait-number" class="text-3xl font-extrabold font-mono text-cyan-300 tabular-nums">0.0</span>
+                            <span class="text-xs text-slate-400 font-mono">minutes</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- One-Click Demo Scenario Controller -->
-                <div class="ops-card p-4 space-y-3">
-                    <div class="flex items-center justify-between pb-1 border-b border-white/[0.06]">
-                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                            <i data-lucide="gamepad-2" class="w-3.5 h-3.5 text-cyan-400"></i> One-Click Demo Scenario Tester
-                        </h3>
-                        <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">Evaluator Controls</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <!-- Scenario 1: Normal Store Flow -->
-                        <button onclick="setSimulationMode('AUTO_CYCLE')" id="btn-mode-auto" class="p-3 rounded-xl text-left bg-cyan-950/80 border border-cyan-500/60 hover:bg-cyan-900/60 transition-all tactile-btn">
-                            <div class="text-xs font-bold text-cyan-300 flex items-center gap-1">
-                                <span>🟢 Normal Flow</span>
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">Stock full, 0 queue</div>
-                        </button>
-
-                        <!-- Scenario 2: Customer Browsing -->
-                        <button onclick="setSimulationMode('CUSTOMER_OCCLUSION')" id="btn-mode-occlusion" class="p-3 rounded-xl text-left bg-panelInner border border-white/[0.06] hover:border-amber-500/50 hover:bg-amber-950/30 transition-all tactile-btn">
-                            <div class="text-xs font-bold text-amber-300 flex items-center gap-1">
-                                <span>🟡 Browsing</span>
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">Alarms suppressed</div>
-                        </button>
-
-                        <!-- Scenario 3: Empty Shelf -->
-                        <button onclick="setSimulationMode('RESTOCK_EMPTY')" id="btn-mode-empty" class="p-3 rounded-xl text-left bg-panelInner border border-white/[0.06] hover:border-red-500/50 hover:bg-red-950/30 transition-all tactile-btn">
-                            <div class="text-xs font-bold text-red-300 flex items-center gap-1">
-                                <span>🔴 Empty Shelf</span>
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">2.0s Debounce alert</div>
-                        </button>
-
-                        <!-- Scenario 4: Queue Congestion -->
-                        <button onclick="setSimulationMode('QUEUE_CONGESTION')" id="btn-mode-queue" class="p-3 rounded-xl text-left bg-panelInner border border-white/[0.06] hover:border-purple-500/50 hover:bg-purple-950/30 transition-all tactile-btn">
-                            <div class="text-xs font-bold text-purple-300 flex items-center gap-1">
-                                <span>🚨 Queue Jam</span>
-                            </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">&ge;2 in line &rarr; Open R2</div>
-                        </button>
-                    </div>
+                <!-- Congestion Dispatch Alert Banner -->
+                <div id="queue-dispatch-banner" class="hidden p-3 rounded-xl bg-red-950/80 border border-red-800 text-xs font-mono text-red-200 flex items-center gap-2.5 animate-pulse">
+                    <i data-lucide="bell-ring" class="w-4 h-4 text-red-400 shrink-0"></i>
+                    <span class="font-bold">CONGESTION DETECTED: Dispatch Cashier & Open Register 2 Immediately</span>
                 </div>
-
             </div>
 
-            <!-- 3. RIGHT SIDEBAR: ACTION CENTER & LIVE ALERT FEED (25% -> 3 Cols) -->
-            <div class="lg:col-span-3 space-y-4">
+        </div>
 
-                <!-- KPI Telemetry Cards -->
-                <div class="space-y-3">
+        <!-- C. CENTER STAGE: DUAL VIDEO MONITORING GRID -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            <!-- Primary Feed: Camera 1 (Webcam / Shelf) -->
+            <div class="ops-kpi-card p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i>
+                        <span class="text-xs font-bold text-white font-mono uppercase">Primary Feed // Cam 01</span>
+                    </div>
+
+                    <!-- Role Switcher & Live FPS Tag -->
+                    <div class="flex items-center gap-2">
+                        <select onchange="changeCameraRole(1, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-cyan-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                            <option value="SHELF" selected>🛍️ Shelf Monitor</option>
+                            <option value="QUEUE">💳 Queue Monitor</option>
+                        </select>
+                        <span id="cam1-fps-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 tabular-nums">28.0 FPS</span>
+                    </div>
+                </div>
+
+                <!-- 16:9 Viewport -->
+                <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/[0.04] flex items-center justify-center">
+                    <img id="video-stream-cam1" src="/video_feed/cam1" alt="Primary Camera Stream" class="w-full h-full object-contain" />
                     
-                    <!-- Shelf Stock KPI Card -->
-                    <div id="card-shelf" class="ops-card p-4 space-y-3 transition-all">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-                                <i data-lucide="package" class="w-3.5 h-3.5 text-cyan-400"></i> Shelf Stock
-                            </span>
-                            <span id="shelf-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
-                                OPTIMAL
-                            </span>
-                        </div>
+                    <div class="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-[10px] font-mono text-cyan-300 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>WEBCAM (V4L2) • 640x360</span>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="flex items-baseline gap-2">
-                            <span id="shelf-stock-count" class="text-3xl font-bold font-mono text-white tabular-nums">5</span>
-                            <span class="text-xs text-slate-400 font-mono">/ 5 Items</span>
-                        </div>
-
-                        <!-- 5-Cell Capacity Indicator -->
-                        <div class="grid grid-cols-5 gap-1" id="shelf-item-cells">
-                            <div class="h-1.5 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                            <div class="h-1.5 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                            <div class="h-1.5 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                            <div class="h-1.5 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                            <div class="h-1.5 rounded-full bg-emerald-400 transition-all duration-300"></div>
-                        </div>
+            <!-- Secondary Feed: Camera 2 (Mobile Ingest / Queue) -->
+            <div class="ops-kpi-card p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="smartphone" class="w-4 h-4 text-amber-400"></i>
+                        <span class="text-xs font-bold text-white font-mono uppercase">Secondary Feed // Cam 02</span>
+                        <span id="cam2-source-badge" class="px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-white/[0.04] border border-white/[0.06]">🖥️ Secondary Stream</span>
                     </div>
 
-                    <!-- Checkout Queue KPI Card -->
-                    <div id="card-queue" class="ops-card p-4 space-y-3 transition-all">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-mono font-bold uppercase text-slate-300 flex items-center gap-1.5">
-                                <i data-lucide="users" class="w-3.5 h-3.5 text-amber-400"></i> Checkout Queue
-                            </span>
-                            <span id="queue-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
-                                NORMAL FLOW
-                            </span>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <span class="text-[10px] font-mono text-slate-500 uppercase">Headcount</span>
-                                <div class="flex items-baseline gap-1 mt-0.5">
-                                    <span id="queue-count" class="text-2xl font-bold font-mono text-white tabular-nums">0</span>
-                                    <span class="text-[10px] text-slate-400 font-mono">ppl</span>
-                                </div>
-                            </div>
-                            <div>
-                                <span class="text-[10px] font-mono text-slate-500 uppercase">Est. Wait</span>
-                                <div class="flex items-baseline gap-1 mt-0.5">
-                                    <span id="queue-wait-time" class="text-2xl font-bold font-mono text-cyan-300 tabular-nums">0.0</span>
-                                    <span class="text-[10px] text-slate-400 font-mono">min</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Congestion Dispatch Banner -->
-                        <div id="queue-dispatch-msg" class="hidden p-2.5 rounded-lg bg-red-950/80 border border-red-800 text-xs font-mono text-red-200 flex items-center gap-2 animate-pulse">
-                            <i data-lucide="bell-ring" class="w-3.5 h-3.5 text-red-400 shrink-0"></i>
-                            <span class="text-[11px] font-bold">⚠️ Open Register 2 Immediately</span>
-                        </div>
+                    <!-- Role Switcher & Live FPS Tag -->
+                    <div class="flex items-center gap-2">
+                        <select onchange="changeCameraRole(2, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-amber-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500 cursor-pointer">
+                            <option value="QUEUE" selected>💳 Queue Monitor</option>
+                            <option value="SHELF">🛍️ Shelf Monitor</option>
+                        </select>
+                        <span id="cam2-fps-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 tabular-nums">28.0 FPS</span>
                     </div>
-
                 </div>
 
-                <!-- Live Staff Action Feed (Automated Dispatch Logs) -->
-                <div class="ops-card p-4 space-y-3">
-                    <div class="flex items-center justify-between pb-1 border-b border-white/[0.06]">
-                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                            <i data-lucide="list-todo" class="w-3.5 h-3.5 text-cyan-400"></i> Staff Action Feed
+                <!-- 16:9 Viewport -->
+                <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/[0.04] flex items-center justify-center">
+                    <img id="video-stream-cam2" src="/video_feed/cam2" alt="Secondary Camera Stream" class="w-full h-full object-contain" />
+                    
+                    <div class="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-[10px] font-mono text-amber-300 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>MOBILE / RTSP INGEST • 640x360</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- D. BOTTOM SECTION: ONE-CLICK DEMO TESTER & LIVE STAFF ACTION FEED -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- One-Click Scenario Demonstrator (5 Cols) -->
+            <div class="lg:col-span-5 ops-kpi-card p-5 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i data-lucide="play-circle" class="w-4 h-4 text-cyan-400"></i> One-Click Scenario Demonstrator
+                    </h3>
+                    <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">Evaluation Controls</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <!-- Normal Store Flow -->
+                    <button onclick="setScenario('AUTO_CYCLE')" class="p-3 rounded-xl text-left bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-cyan-300">🟢 Normal Flow</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">Stock full, 0 queue</div>
+                    </button>
+
+                    <!-- Customer Browsing -->
+                    <button onclick="setScenario('CUSTOMER_OCCLUSION')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-amber-950/40 border border-white/[0.06] hover:border-amber-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-amber-300">🟡 Customer Browsing</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">Alarms suppressed</div>
+                    </button>
+
+                    <!-- Empty Shelf -->
+                    <button onclick="setScenario('RESTOCK_EMPTY')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-red-950/40 border border-white/[0.06] hover:border-red-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-red-300">🔴 Empty Shelf</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">2.0s Debounce alarm</div>
+                    </button>
+
+                    <!-- Queue Jam -->
+                    <button onclick="setScenario('QUEUE_CONGESTION')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-purple-950/40 border border-white/[0.06] hover:border-purple-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-purple-300">🚨 Queue Jam</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">&ge;2 in queue &rarr; R2 Alert</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Staff Action Feed (7 Cols) -->
+            <div class="lg:col-span-7 ops-kpi-card p-5 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
+                            Live Staff Action Feed (Automated Dispatch Logs)
                         </h3>
-                        <button onclick="clearActionFeed()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition">Clear</button>
+                        <span id="unread-alert-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">1</span>
                     </div>
-
-                    <!-- Scrollable Notification Cards Feed -->
-                    <div id="action-feed-container" class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                        
-                        <!-- Default Ready Card -->
-                        <div class="p-3 rounded-xl bg-panelInner border border-white/[0.04] space-y-1">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-mono font-bold text-emerald-400 uppercase flex items-center gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> SYSTEM READY
-                                </span>
-                                <span class="text-[10px] font-mono text-slate-500">Live</span>
-                            </div>
-                            <p class="text-xs text-slate-300 font-sans">
-                                On-device vision inference active (0.0 KB/s Uplink).
-                            </p>
-                        </div>
-
-                    </div>
+                    <button onclick="clearAlertFeed()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition">Clear</button>
                 </div>
 
+                <div id="staff-alert-feed" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                    <div class="p-3 rounded-xl border border-white/[0.06] bg-surfaceInner space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-mono font-bold text-emerald-400 uppercase flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> SYSTEM INITIALIZED
+                            </span>
+                            <span class="text-[10px] font-mono text-slate-500">Live</span>
+                        </div>
+                        <p class="text-xs font-sans text-slate-300 leading-snug">
+                            Dual-stream vision pipeline active with GPU FP16 acceleration & 0.0 KB/s Cloud Uplink.
+                        </p>
+                    </div>
+                </div>
             </div>
 
         </div>
 
     </div>
 
-    <!-- JAVASCRIPT & STATE ENGINE -->
-    <script>
-        lucide.createIcons();
+    <!-- E. COLLAPSIBLE QUALCOMM & EDGE SILICON TELEMETRY DRAWER -->
+    <div id="drawer-overlay" onclick="toggleEngineeringDrawer()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden transition-opacity duration-300"></div>
 
-        let streamErrorCount = 0;
-        let lastShelfStatus = "";
-        let lastQueueStatus = "";
-        let unreadAlertCount = 0;
-
-        // Live Clock Updater
-        function updateLiveClock() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('live-clock').innerText = timeStr;
-        }
-        setInterval(updateLiveClock, 1000);
-        updateLiveClock();
-
-        // Telemetry Polling (300ms)
-        async function fetchMetrics() {
-            try {
-                const res = await fetch('/metrics');
-                if (!res.ok) throw new Error('Network response error');
-                const data = await res.json();
-                updateDashboard(data);
-            } catch (err) {
-                console.warn('[Telemetry] Polling warning:', err);
-            }
-        }
-
-        function updateDashboard(data) {
-            const dev = data.device || {};
-            const shelf = data.shelf || {};
-            const queue = data.queue || {};
-
-            // 1. Header & Telemetry Badges
-            document.getElementById('header-fps').innerText = dev.edge_fps ? dev.edge_fps.toFixed(1) : '28.0';
-            document.getElementById('hardware-temp').innerText = `${dev.soc_temp_c || 50.0}°C`;
-            document.getElementById('hardware-cpu').innerText = `${dev.cpu_load_pct || 30.0}%`;
-            document.getElementById('floating-latency').innerText = `${(dev.inference_latency_ms || 18.0).toFixed(1)} ms`;
-
-            // 2. Shelf Stock Monitor & 5-Cell Capacity Indicator
-            const stockCount = shelf.stock_count !== undefined ? shelf.stock_count : 0;
-            document.getElementById('shelf-stock-count').innerText = stockCount;
-            document.getElementById('strip-shelf-count').innerText = `${stockCount} items`;
-
-            const cellContainer = document.getElementById('shelf-item-cells');
-            if (cellContainer) {
-                const cells = cellContainer.children;
-                for (let i = 0; i < 5; i++) {
-                    if (i < stockCount) {
-                        cells[i].className = 'h-1.5 rounded-full bg-emerald-400 transition-all duration-300';
-                    } else {
-                        cells[i].className = 'h-1.5 rounded-full bg-white/[0.08] transition-all duration-300';
-                    }
-                }
-            }
-
-            const shelfBadge = document.getElementById('shelf-status-badge');
-            const shelfCard = document.getElementById('card-shelf');
-            const stripShelf = document.getElementById('strip-shelf');
-
-            if (shelf.is_occluded) {
-                shelfBadge.innerText = 'BROWSING';
-                shelfBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-amber-950/80 text-amber-300 border border-amber-800/80';
-                shelfCard.className = 'ops-card p-4 space-y-3 glow-amber';
-                stripShelf.className = 'col-span-5 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/60 flex items-center justify-between';
-            } else if (shelf.status === 'OUT_OF_STOCK_ALERT' || shelf.alert_active) {
-                shelfBadge.innerText = 'DEPLETED';
-                shelfBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-red-950/80 text-red-300 border border-red-800/80 animate-pulse';
-                shelfCard.className = 'ops-card p-4 space-y-3 glow-red';
-                stripShelf.className = 'col-span-5 p-2.5 rounded-lg bg-red-950/50 border border-red-500/80 flex items-center justify-between';
-            } else if (shelf.status === 'PENDING_OOS') {
-                shelfBadge.innerText = 'PENDING OOS';
-                shelfBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-yellow-950/80 text-yellow-300 border border-yellow-800/80';
-                shelfCard.className = 'ops-card p-4 space-y-3';
-                stripShelf.className = 'col-span-5 p-2.5 rounded-lg bg-yellow-950/30 border border-yellow-800/50 flex items-center justify-between';
-            } else {
-                shelfBadge.innerText = 'OPTIMAL';
-                shelfBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80';
-                shelfCard.className = 'ops-card p-4 space-y-3';
-                stripShelf.className = 'col-span-5 p-2.5 rounded-lg bg-cyan-950/40 border border-cyan-800/50 flex items-center justify-between';
-            }
-
-            // 3. Checkout Queue Intelligence
-            const qCount = queue.customer_count !== undefined ? queue.customer_count : 0;
-            document.getElementById('queue-count').innerText = qCount;
-            document.getElementById('queue-wait-time').innerText = (queue.estimated_wait_min || 0).toFixed(1);
-            document.getElementById('strip-queue-count').innerText = `${qCount} waiting`;
-
-            const qBadge = document.getElementById('queue-status-badge');
-            const qCard = document.getElementById('card-queue');
-            const qDispatch = document.getElementById('queue-dispatch-msg');
-            const stripQueue = document.getElementById('strip-queue');
-
-            if (queue.congestion_alert || queue.status === 'CONGESTION_WARNING') {
-                qBadge.innerText = 'CONGESTION';
-                qBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-red-950/80 text-red-300 border border-red-800/80 animate-pulse';
-                qCard.className = 'ops-card p-4 space-y-3 glow-red';
-                stripQueue.className = 'col-span-5 p-2.5 rounded-lg bg-red-950/50 border border-red-500/80 flex items-center justify-between';
-                qDispatch.classList.remove('hidden');
-            } else {
-                qBadge.innerText = 'NORMAL FLOW';
-                qBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80';
-                qCard.className = 'ops-card p-4 space-y-3';
-                stripQueue.className = 'col-span-5 p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/50 flex items-center justify-between';
-                qDispatch.classList.add('hidden');
-            }
-
-            // 4. Automated Staff Action Feed Trigger
-            if (shelf.status !== lastShelfStatus) {
-                if (shelf.status === 'OUT_OF_STOCK_ALERT') {
-                    addActionCard('🔴 URGENT RESTOCK', 'Shelf Tier-1 is empty (0 items). Restock beverages immediately.', 'Dispatch Staff', 'bg-red-950/50 border-red-800 text-red-300');
-                } else if (shelf.status === 'CUSTOMER_INTERACTING') {
-                    addActionCard('🟡 CUSTOMER BROWSING', 'Shopper in Shelf Zone (CSIM active, restock alarms paused).', 'Monitor', 'bg-amber-950/40 border-amber-800 text-amber-300');
-                } else if (shelf.status === 'OPTIMAL' && lastShelfStatus === 'OUT_OF_STOCK_ALERT') {
-                    addActionCard('🟢 RESTOCK CONFIRMED', 'Inventory replenished to 5/5 optimal units.', 'Resolved', 'bg-emerald-950/40 border-emerald-800 text-emerald-300');
-                }
-                lastShelfStatus = shelf.status;
-            }
-
-            if (queue.status !== lastQueueStatus) {
-                if (queue.status === 'CONGESTION_WARNING') {
-                    addActionCard('🚨 CASHIER ALERT', `Queue length ≥${queue.customer_count} persons (Est. wait: ${queue.estimated_wait_min}m).`, 'Open Register 2', 'bg-red-950/50 border-red-800 text-red-300');
-                }
-                lastQueueStatus = queue.status;
-            }
-        }
-
-        // Add Action Card to Feed
-        function addActionCard(title, message, actionLabel, styleClasses) {
-            const container = document.getElementById('action-feed-container');
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-            const card = document.createElement('div');
-            card.className = `p-3 rounded-xl border space-y-1.5 transition-all duration-300 ${styleClasses}`;
-            card.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-wider">${title}</span>
-                    <span class="text-[10px] font-mono opacity-60">${timeStr}</span>
+    <aside id="telemetry-drawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-[#0C101A] border-l border-white/10 z-50 transform translate-x-full transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] p-6 overflow-y-auto space-y-6 shadow-2xl">
+        
+        <div class="flex items-center justify-between border-b border-white/[0.08] pb-4">
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-xl bg-indigo-950 text-indigo-400 border border-indigo-800/60">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
                 </div>
-                <p class="text-xs font-sans text-slate-200 leading-snug">${message}</p>
-                <div class="flex justify-between items-center pt-1">
-                    <span class="text-[10px] font-mono font-semibold opacity-75">Action: ${actionLabel}</span>
-                    <button onclick="this.parentElement.parentElement.remove()" class="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 hover:bg-white/20 text-white transition">Acknowledge</button>
+                <div>
+                    <h2 class="text-sm font-bold text-white uppercase font-mono">Qualcomm® & Edge Specs</h2>
+                    <p class="text-xs text-slate-400">Engineering Telemetry for Judges</p>
                 </div>
-            `;
+            </div>
+            <button onclick="toggleEngineeringDrawer()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
 
-            container.prepend(card);
-            unreadAlertCount++;
-            document.getElementById('notification-count').innerText = unreadAlertCount;
-        }
+        <!-- Silicon Profile -->
+        <div class="space-y-3 font-mono text-xs">
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Silicon Platform</span>
+                <p class="text-sm font-bold text-white">Qualcomm® QCS6490 / RB3 Gen 2</p>
+                <p class="text-[11px] text-slate-400 font-sans">Compatible with Raspberry Pi 5 & NVIDIA Edge Gateways</p>
+            </div>
 
-        function clearActionFeed() {
-            document.getElementById('action-feed-container').innerHTML = '';
-            unreadAlertCount = 0;
-            document.getElementById('notification-count').innerText = '0';
-        }
+            <!-- Active Inference Engine -->
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Inference Hardware</span>
+                <p id="drawer-device" class="text-sm font-bold text-cyan-300 tabular-nums">CUDA:0 (FP16 Accelerated)</p>
+                <div class="flex justify-between text-slate-400 pt-1">
+                    <span>Inference Latency:</span>
+                    <span id="drawer-latency" class="text-emerald-400 font-bold tabular-nums">7.4 ms</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>Dual Throughput:</span>
+                    <span id="drawer-throughput" class="text-cyan-300 font-bold tabular-nums">58.0 FPS Total</span>
+                </div>
+            </div>
 
-        // Scenario Handlers
-        async function setSimulationMode(mode) {
-            try {
-                await fetch('/api/simulation/control', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode: mode, stock_override: -1, queue_override: -1, occlusion_override: null })
-                });
+            <!-- Thermals & Load -->
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Edge Thermals & Load</span>
+                <div class="flex justify-between text-slate-400">
+                    <span>SoC Core Temp:</span>
+                    <span id="drawer-temp" class="text-amber-300 font-bold tabular-nums">51.2°C</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>CPU Core Load:</span>
+                    <span id="drawer-cpu" class="text-slate-200 font-bold tabular-nums">28.4%</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>DMA Memory:</span>
+                    <span id="drawer-ram" class="text-slate-200 font-bold tabular-nums">1240 / 8192 MB</span>
+                </div>
+            </div>
 
-                ['auto', 'occlusion', 'empty', 'queue'].forEach(k => {
-                    const el = document.getElementById(`btn-mode-${k}`);
-                    if (el) el.className = 'p-3 rounded-xl text-left bg-panelInner border border-white/[0.06] hover:border-cyan-500/50 hover:bg-cyan-950/30 transition-all tactile-btn';
-                });
-            } catch (err) {
-                console.error(err);
-            }
-        }
+            <!-- Zero-Cloud Compliance -->
+            <div class="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 space-y-2 text-emerald-300">
+                <span class="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> DPDP Act 2023 Verified
+                </span>
+                <p class="text-xs font-sans text-emerald-200">
+                    Zero raw video frames or biometric embeddings are transmitted externally.
+                </p>
+                <div class="flex justify-between pt-1 text-slate-300">
+                    <span>Cloud Egress:</span>
+                    <span class="font-bold text-emerald-400 tabular-nums">0.00 KB/s (100% Edge Offline)</span>
+                </div>
+            </div>
+        </div>
 
-        // Video Stream Error Handlers & Reconnect
-        function handleVideoError() {
-            streamErrorCount++;
-            document.getElementById('video-fallback').classList.remove('hidden');
-            setTimeout(reloadStream, 2000);
-        }
+        <button onclick="toggleEngineeringDrawer()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg">
+            Close Engineering Telemetry
+        </button>
 
-        function handleVideoSuccess() {
-            document.getElementById('video-fallback').classList.add('hidden');
-        }
+    </aside>
 
-        function reloadStream() {
-            const img = document.getElementById('live-video');
-            img.src = '/video_feed?t=' + new Date().getTime();
-        }
+    <!-- F. MOBILE CONNECT MODAL (QR CODE & URL) -->
+    <div id="mobile-connect-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="ops-kpi-card max-w-md w-full p-6 space-y-5 border border-white/10 shadow-2xl">
+            
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                        <i data-lucide="smartphone" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Connect Smartphone Camera</h3>
+                        <p class="text-xs text-slate-400">Stream phone camera over local Wi-Fi</p>
+                    </div>
+                </div>
+                <button onclick="toggleMobileModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
 
-        // Start Telemetry Polling Loop (300ms)
-        setInterval(fetchMetrics, 300);
-        fetchMetrics();
-    </script>
+            <!-- QR Code Container -->
+            <div class="flex flex-col items-center justify-center p-4 bg-surfaceInner rounded-xl border border-white/[0.04] space-y-3">
+                <div id="qr-code-container" class="flex items-center justify-center">
+                    <div class="w-44 h-44 flex items-center justify-center text-xs text-slate-500 font-mono animate-pulse">Generating QR...</div>
+                </div>
+                <p class="text-[11px] text-center text-slate-400 max-w-xs font-sans">
+                    Scan with your phone camera while connected to the same Wi-Fi network.
+                </p>
+            </div>
+
+            <!-- Direct URL & Copy Button -->
+            <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex items-center justify-between gap-2">
+                <span id="mobile-connect-url" class="text-xs font-mono text-cyan-300 truncate">http://192.168.0.7:8000/mobile_cam</span>
+                <button onclick="copyMobileUrl()" class="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-obsidian font-bold text-xs shrink-0 transition">
+                    Copy Link
+                </button>
+            </div>
+
+            <button onclick="toggleMobileModal()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
+                Done
+            </button>
+
+        </div>
+    </div>
+
+    <!-- Client Controller Script -->
+    <script src="/static/app.js"></script>
 </body>
 </html>
