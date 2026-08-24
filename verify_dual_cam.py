@@ -14,6 +14,8 @@ import time
 import socket
 import numpy as np
 import cv2
+import warnings
+warnings.filterwarnings("ignore")
 from fastapi.testclient import TestClient
 
 def run_verification():
@@ -65,9 +67,9 @@ def run_verification():
     model = YOLO("yolov8n.pt")
     dummy_img = np.zeros((360, 640, 3), dtype=np.uint8)
     t_start = time.time()
-    results = model(dummy_img, imgsz=320, verbose=False, device=DEVICE, half=USE_HALF)
+    results = model(dummy_img, imgsz=320, verbose=False, device=DEVICE)
     latency_ms = (time.time() - t_start) * 1000.0
-    print(f"  -> Inference completed in {latency_ms:.1f}ms on {DEVICE} (imgsz=320, half={USE_HALF})")
+    print(f"  -> Inference completed in {latency_ms:.1f}ms on {DEVICE} (imgsz=320)")
     assert len(results) > 0
     print("  [PASS] YOLOv8 executed inference cleanly.")
 

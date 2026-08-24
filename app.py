@@ -28,6 +28,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import warnings
+warnings.filterwarnings("ignore")
+
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
@@ -411,11 +414,11 @@ class DualCameraVisionEngine:
             return
 
         try:
-            print(f"[DualEngine] Loading YOLOv8 model: {self.model_path} on {DEVICE} (half={USE_HALF})...")
+            print(f"[DualEngine] Loading YOLOv8 model: {self.model_path} on {DEVICE}...")
             self.model = YOLO(self.model_path)
             # Warm up model
             dummy = np.zeros((self.imgsz, self.imgsz, 3), dtype=np.uint8)
-            self.model(dummy, imgsz=self.imgsz, verbose=False, device=DEVICE, half=USE_HALF)
+            self.model(dummy, imgsz=self.imgsz, verbose=False, device=DEVICE)
             self.model_loaded = True
             print("[DualEngine] YOLOv8 model loaded and warmed up.")
         except Exception as e:
@@ -440,7 +443,7 @@ class DualCameraVisionEngine:
         detections = []
         if self.model_loaded and self.model is not None:
             try:
-                results = self.model(frame, imgsz=self.imgsz, verbose=False, conf=0.35, device=DEVICE, half=USE_HALF)
+                results = self.model(frame, imgsz=self.imgsz, verbose=False, conf=0.35, device=DEVICE)
                 for r in results:
                     for box in r.boxes:
                         cls_id = int(box.cls[0].item())
