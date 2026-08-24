@@ -105,6 +105,9 @@
             box-shadow: 0 0 30px -4px rgba(16, 185, 129, 0.3);
             border-color: rgba(16, 185, 129, 0.45) !important;
         }
+        canvas.roi-interactive {
+            cursor: crosshair;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-obsidian text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
@@ -137,17 +140,29 @@
                             ALL SYSTEMS OPTIMAL
                         </div>
                     </div>
-                    <p class="text-xs text-slate-400 font-normal mt-0.5">Dual-Stream Autonomous Edge Vision & Spatial CSIM Operations</p>
+                    <p class="text-xs text-slate-400 font-normal mt-0.5">Dual-Stream Autonomous Edge Vision, SQLite Shift Analytics & Spatial CSIM</p>
                 </div>
             </div>
 
             <!-- Right: Action Buttons & Navigation -->
             <div class="flex flex-wrap items-center gap-3">
                 
+                <!-- Audio Mute / Unmute Toggle -->
+                <button id="audio-toggle-btn" onclick="toggleAudioChimes()" title="Toggle Dispatch Sound Chimes" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn">
+                    <i data-lucide="volume-2" id="audio-toggle-icon" class="w-4 h-4 text-emerald-400"></i>
+                    <span id="audio-toggle-label">Audio: On</span>
+                </button>
+
+                <!-- Daily Shift Report Modal Button -->
+                <button onclick="openShiftSummaryModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/60 text-xs font-bold text-emerald-200 transition tactile-btn shadow-md shadow-emerald-950/30">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Daily Shift Report</span>
+                </button>
+
                 <!-- Connect Mobile Phone Button -->
                 <button onclick="toggleMobileModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-xs font-bold text-cyan-200 transition tactile-btn shadow-md shadow-cyan-950/30">
                     <i data-lucide="smartphone" class="w-4 h-4 text-cyan-400"></i>
-                    <span>Connect Smartphone Ingest</span>
+                    <span>Connect Phone Ingest</span>
                 </button>
 
                 <!-- Engineering Telemetry Drawer Toggle -->
@@ -262,8 +277,12 @@
                         <span class="text-xs font-bold text-white font-mono uppercase">Primary Feed // Cam 01</span>
                     </div>
 
-                    <!-- Role Switcher & Live FPS Tag -->
+                    <!-- Actions: ROI Calibrate, Role Switcher & Live FPS Tag -->
                     <div class="flex items-center gap-2">
+                        <button onclick="openCalibrationModal(1)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-600/50 text-[11px] font-mono text-cyan-300 transition tactile-btn shadow">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                            <span>Calibrate ROI</span>
+                        </button>
                         <select onchange="changeCameraRole(1, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-cyan-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer">
                             <option value="SHELF" selected>🛍️ Shelf Monitor</option>
                             <option value="QUEUE">💳 Queue Monitor</option>
@@ -292,8 +311,12 @@
                         <span id="cam2-source-badge" class="px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-white/[0.04] border border-white/[0.06]">🖥️ Secondary Stream</span>
                     </div>
 
-                    <!-- Role Switcher & Live FPS Tag -->
+                    <!-- Actions: ROI Calibrate, Role Switcher & Live FPS Tag -->
                     <div class="flex items-center gap-2">
+                        <button onclick="openCalibrationModal(2)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-600/50 text-[11px] font-mono text-amber-300 transition tactile-btn shadow">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                            <span>Calibrate ROI</span>
+                        </button>
                         <select onchange="changeCameraRole(2, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-amber-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500 cursor-pointer">
                             <option value="QUEUE" selected>💳 Queue Monitor</option>
                             <option value="SHELF">🛍️ Shelf Monitor</option>
@@ -360,7 +383,7 @@
                     <div class="flex items-center gap-2">
                         <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>
                         <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-                            Live Staff Action Feed (Automated Dispatch Logs)
+                            Live Staff Action Feed (SQLite Incidents Log)
                         </h3>
                         <span id="unread-alert-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">1</span>
                     </div>
@@ -376,7 +399,7 @@
                             <span class="text-[10px] font-mono text-slate-500">Live</span>
                         </div>
                         <p class="text-xs font-sans text-slate-300 leading-snug">
-                            Dual-stream vision pipeline active with GPU FP16 acceleration & 0.0 KB/s Cloud Uplink.
+                            Dual-stream vision pipeline active with SQLite WAL storage & 0.0 KB/s Cloud Uplink.
                         </p>
                     </div>
                 </div>
@@ -506,6 +529,155 @@
             <button onclick="toggleMobileModal()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
                 Done
             </button>
+
+        </div>
+    </div>
+
+    <!-- G. INTERACTIVE ROI CALIBRATION MODAL -->
+    <div id="roi-calibration-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="ops-kpi-card max-w-2xl w-full p-6 space-y-4 border border-white/10 shadow-2xl">
+            
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                        <i data-lucide="crosshair" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            Interactive Zone Calibrator <span id="calib-zone-tag" class="text-xs font-mono text-cyan-300 font-normal">// SHELF ZONE</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Drag corner handles to adjust the spatial detection boundaries</p>
+                    </div>
+                </div>
+                <button onclick="closeCalibrationModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Canvas Interactive Viewport -->
+            <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+                <canvas id="roi-calibration-canvas" width="640" height="360" class="w-full h-full object-contain roi-interactive"></canvas>
+            </div>
+
+            <!-- Coordinates & Presets Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-surfaceInner border border-white/[0.06] text-xs font-mono">
+                <div class="text-slate-300">
+                    <span>ROI: </span>
+                    <span id="calib-coords-label" class="text-cyan-300 font-bold">[X1: 0.10, Y1: 0.20 &rarr; X2: 0.90, Y2: 0.85]</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="applyRoiPreset('DEFAULT')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Reset Default</button>
+                    <button onclick="applyRoiPreset('FULL')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Full Frame</button>
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex gap-3 pt-1">
+                <button onclick="closeCalibrationModal()" class="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
+                    Cancel
+                </button>
+                <button onclick="saveCalibration()" class="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-obsidian font-bold text-xs transition shadow-lg flex items-center justify-center gap-1.5">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Save Calibration</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- H. DAILY SHIFT SUMMARY REPORT MODAL -->
+    <div id="shift-summary-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="ops-kpi-card max-w-3xl w-full p-6 space-y-5 border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Daily Operational Shift Report</h3>
+                        <p class="text-xs text-slate-400 font-mono">Store #104 • SQLite WAL Persistent Store</p>
+                    </div>
+                </div>
+                <button onclick="closeShiftSummaryModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- KPI Metric Tiles Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Total Footfall</span>
+                    <p id="shift-footfall" class="text-2xl font-extrabold text-white tabular-nums">142</p>
+                    <span class="text-[10px] text-emerald-400">Shoppers tracked</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Peak Congestion</span>
+                    <p id="shift-peak-hour" class="text-base font-bold text-amber-300">14:00 - 15:00</p>
+                    <span class="text-[10px] text-slate-400">High traffic window</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Avg Wait Time</span>
+                    <p id="shift-avg-wait" class="text-2xl font-extrabold text-cyan-300 tabular-nums">1.4m</p>
+                    <span class="text-[10px] text-slate-400">Per shopper</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Restock Alerts</span>
+                    <p id="shift-restock-count" class="text-2xl font-extrabold text-red-300 tabular-nums">3</p>
+                    <span class="text-[10px] text-slate-400">Debounced & Resolved</span>
+                </div>
+            </div>
+
+            <!-- Secondary Analytics Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Cashier Dispatches:</span>
+                    <span id="shift-dispatches" class="font-bold text-amber-300 text-sm">2</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Mean Restock Lag:</span>
+                    <span id="shift-mean-lag" class="font-bold text-emerald-300 text-sm">48.2s</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Edge Uptime:</span>
+                    <span id="shift-uptime" class="font-bold text-cyan-300 text-sm">8.5 hrs</span>
+                </div>
+            </div>
+
+            <!-- Recent Incidents Table -->
+            <div class="space-y-2">
+                <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    Latest Incident Log (SQLite WAL Records)
+                </h4>
+                <div class="rounded-xl border border-white/[0.06] bg-surfaceInner overflow-hidden max-h-48 overflow-y-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-black/50 text-slate-400 border-b border-white/[0.06] text-[10px] uppercase">
+                            <tr>
+                                <th class="p-2.5">Time</th>
+                                <th class="p-2.5">Zone</th>
+                                <th class="p-2.5">Event</th>
+                                <th class="p-2.5">Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shift-events-tbody" class="divide-y divide-white/[0.04] text-slate-300">
+                            <tr>
+                                <td colspan="4" class="p-3 text-center text-slate-500">Loading incident records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeShiftSummaryModal()" class="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
+                    Close
+                </button>
+                <button onclick="exportShiftCsv()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg flex items-center justify-center gap-1.5">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span>Export Shift Log (CSV)</span>
+                </button>
+            </div>
 
         </div>
     </div>

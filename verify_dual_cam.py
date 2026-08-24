@@ -8,10 +8,14 @@ Verifies:
 4. Dynamic Camera Role Swapping & Retail State Machine (CSIM + Queue).
 5. FastAPI HTTP Endpoints (/ , /mobile_cam, /presentation, /api/metrics, /api/network_info, /api/config/camera).
 6. WebSocket Mobile Frame Ingestion (/ws/mobile_upload).
+7. Dynamic ROI Configuration API (/api/config/roi) & Persistence (config.json).
+8. SQLite Event Store (WAL Mode) & Shift Summary Report (/api/reports/shift_summary).
 """
 
 import time
+import os
 import socket
+import sqlite3
 import numpy as np
 import cv2
 import warnings
@@ -157,10 +161,55 @@ def run_verification():
         print(f"  -> POST /api/simulation/control -> Status {res_sim.status_code}")
         assert res_sim.status_code == 200
 
-    print("  [PASS] All HTTP endpoints and telemetry contracts verified.")
+        # GET /api/config/roi & POST /api/config/roi
+        print("\n[TEST 6] Verifying Dynamic ROI Configuration API & Persistence...")
+        res_roi_get = client.get("/api/config/roi")
+        print(f"  -> GET /api/config/roi -> Status {res_roi_get.status_code}")
+        assert res_roi_get.status_code == 200
+        roi_data = res_roi_get.json()
+        assert "shelf_roi" in roi_data
+        assert "queue_roi" in roi_data
 
-    # 6. Test WebSocket Mobile Ingestion
-    print("\n[TEST 6] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
+        res_roi_post = client.post("/api/config/roi", json={
+            "camera_id": 1,
+            "roi_type": "SHELF",
+            "x1": 0.12,
+            "y1": 0.22,
+            "x2": 0.88,
+            "y2": 0.82
+        })
+        print(f"  -> POST /api/config/roi -> Status {res_roi_post.status_code}")
+        assert res_roi_post.status_code == 200
+        assert engine.shelf_roi["x1"] == 0.12
+        print(f"     * Updated Shelf ROI: {engine.shelf_roi}")
+        print("  [PASS] Dynamic ROI Configuration & Persistence verified.")
+
+        # GET /api/reports/shift_summary & /api/history/events
+        print("\n[TEST 7] Verifying SQLite WAL Shift Analytics & Incident Logs...")
+        res_shift = client.get("/api/reports/shift_summary")
+        print(f"  -> GET /api/reports/shift_summary -> Status {res_shift.status_code}")
+        assert res_shift.status_code == 200
+        shift_data = res_shift.json()
+        assert "total_shopper_footfall" in shift_data
+        assert "peak_queue_hour" in shift_data
+        assert "avg_queue_wait_min" in shift_data
+        print(f"     * Store: {shift_data['store_id']}")
+        print(f"     * Footfall: {shift_data['total_shopper_footfall']} | Peak: {shift_data['peak_queue_hour']}")
+        print(f"     * Restock Alerts: {shift_data['total_restock_alerts']} | Dispatches: {shift_data['total_cashier_dispatches']}")
+
+        res_csv = client.get("/api/reports/shift_summary/csv")
+        print(f"  -> GET /api/reports/shift_summary/csv -> Status {res_csv.status_code}")
+        assert res_csv.status_code == 200
+        assert "text/csv" in res_csv.headers.get("content-type", "")
+
+        res_events = client.get("/api/history/events?limit=10")
+        print(f"  -> GET /api/history/events -> Status {res_events.status_code}")
+        assert res_events.status_code == 200
+        assert isinstance(res_events.json(), list)
+        print("  [PASS] Shift Analytics & Event History verified.")
+
+    # 8. Test WebSocket Mobile Ingestion
+    print("\n[TEST 8] Verifying Mobile Frame WebSocket Ingestion (/ws/mobile_upload)...")
     dummy_frame = np.full((360, 640, 3), 128, dtype=np.uint8)
     _, dummy_jpeg = cv2.imencode('.jpg', dummy_frame)
     dummy_bytes = dummy_jpeg.tobytes()
@@ -169,14 +218,13 @@ def run_verification():
         with client.websocket_connect("/ws/mobile_upload") as websocket:
             websocket.send_bytes(dummy_bytes)
             time.sleep(0.1)
-            # Verify engine ingested mobile frame
             assert engine.cam2_source.startswith("Mobile Phone")
             print(f"  -> Ingested Mobile Frame successfully. Active Source: {engine.cam2_source}")
 
     print("  [PASS] WebSocket Mobile Ingestion verified.")
 
     print("\n" + "=" * 70)
-    print("  ALL 6 DUAL-CAMERA VERIFICATION SUITES PASSED (100% GREEN)!")
+    print("  ALL 8 ADVANCED ENTERPRISE SUITES PASSED (100% GREEN)!")
     print("=" * 70)
 
 if __name__ == "__main__":

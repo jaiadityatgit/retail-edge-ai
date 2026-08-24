@@ -224,3 +224,9 @@ __marimo__/
 *.pem
 cert.pem
 key.pem
+
+# Local SQLite DBs
+*.db
+*.db-wal
+*.db-shm
+retail_events.db*
