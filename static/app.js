@@ -594,6 +594,10 @@ class RoiCalibrator {
 
     async save() {
         try {
+            // Reset drag state
+            this.isDragging = false;
+            this.dragTarget = null;
+
             // Update the box of active zone in zonesConfig
             const updatedBox = [this.roi.x1, this.roi.y1, this.roi.x2, this.roi.y2];
             if (this.zonesConfig.shelf_zones) {
@@ -613,14 +617,14 @@ class RoiCalibrator {
 
             if (res.ok) {
                 soundManager.playAlertTone('normal');
-                alert(`✅ Successfully saved planograms & camera queue lanes to config.json!`);
                 this.close();
+                showToastNotification('✅ Planogram & Queue zones saved & applied!', 'success');
             } else {
-                alert('Failed to save planogram calibration.');
+                showToastNotification('⚠️ Failed to save planogram calibration.', 'error');
             }
         } catch (e) {
             console.error('[Save ROI Error]', e);
-            alert('Network error saving planogram.');
+            showToastNotification(`Network error saving planogram: ${e.message}`, 'error');
         }
     }
 }
@@ -1096,6 +1100,44 @@ function toggleMobileModal() {
         modal.classList.toggle('hidden');
     }
 }
+
+// Sleek In-App Toast Notification
+function showToastNotification(message, type = 'info') {
+    let toast = document.getElementById('app-toast-banner');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'app-toast-banner';
+        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-2xl shadow-2xl font-mono text-xs font-bold transition-all duration-300 flex items-center gap-2 border';
+        document.body.appendChild(toast);
+    }
+
+    if (type === 'success') {
+        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-2xl shadow-2xl font-mono text-xs font-bold transition-all duration-300 flex items-center gap-2 border bg-emerald-950/90 text-emerald-200 border-emerald-500/80 shadow-emerald-950/50 scale-100 opacity-100';
+    } else if (type === 'error') {
+        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-2xl shadow-2xl font-mono text-xs font-bold transition-all duration-300 flex items-center gap-2 border bg-rose-950/90 text-rose-200 border-rose-500/80 shadow-rose-950/50 scale-100 opacity-100';
+    } else {
+        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2.5 rounded-2xl shadow-2xl font-mono text-xs font-bold transition-all duration-300 flex items-center gap-2 border bg-cyan-950/90 text-cyan-200 border-cyan-500/80 shadow-cyan-950/50 scale-100 opacity-100';
+    }
+
+    toast.innerText = message;
+
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => {
+        toast.className += ' opacity-0 -translate-y-4 pointer-events-none';
+    }, 3200);
+}
+
+// Global Keyboard Handler (Escape closes any open modal)
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeCalibrationModal();
+        closeShiftSummaryModal();
+        const mobModal = document.getElementById('mobile-connect-modal');
+        if (mobModal && !mobModal.classList.contains('hidden')) {
+            toggleMobileModal();
+        }
+    }
+});
 
 // Start Telemetry Polling & Audio UI Setup
 window.addEventListener('DOMContentLoaded', () => {
