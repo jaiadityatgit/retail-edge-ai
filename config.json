@@ -5,24 +5,51 @@
       "name": "Tier 1 - Cold Beverages",
       "box": [
         0.1,
-        0.18,
+        0.15,
         0.9,
-        0.48
+        0.85
       ],
-      "capacity": 6,
-      "low_stock_threshold": 2
+      "capacity": 11,
+      "low_stock_threshold": 2,
+      "current_count": 4,
+      "capacity_pct": 36,
+      "is_occluded": false,
+      "status": "OPTIMAL",
+      "alert": false
     },
     {
       "id": "shelf_tier_2",
       "name": "Tier 2 - Snacks & Biscuits",
       "box": [
         0.1,
-        0.52,
+        0.42,
         0.9,
-        0.85
+        0.65
       ],
       "capacity": 8,
-      "low_stock_threshold": 2
+      "low_stock_threshold": 2,
+      "current_count": 0,
+      "capacity_pct": 0,
+      "is_occluded": false,
+      "status": "CRITICAL_EMPTY",
+      "alert": true
+    },
+    {
+      "id": "shelf_tier_3",
+      "name": "Tier 3 - Fresh Produce",
+      "box": [
+        0.1,
+        0.68,
+        0.9,
+        0.9
+      ],
+      "capacity": 10,
+      "low_stock_threshold": 3,
+      "current_count": 0,
+      "capacity_pct": 0,
+      "is_occluded": false,
+      "status": "CRITICAL_EMPTY",
+      "alert": true
     }
   ],
   "queue_lanes": [
@@ -30,23 +57,62 @@
       "id": "reg_1",
       "name": "Counter 1 (Main)",
       "box": [
-        0.1,
-        0.2,
-        0.48,
-        0.85
+        0.08,
+        0.22,
+        0.92,
+        0.86
       ],
-      "max_wait_threshold_min": 3.0
+      "max_wait_threshold_min": 3.0,
+      "headcount": 1,
+      "est_wait_min": 1.5,
+      "status": "NORMAL_FLOW",
+      "badge": "\ud83d\udfe1 1 Shopper (~1.5m)",
+      "congested": false
     },
     {
       "id": "reg_2",
-      "name": "Counter 2 (Self-Checkout)",
+      "name": "Counter 2 (UPI)",
       "box": [
-        0.52,
+        0.35,
         0.2,
-        0.9,
+        0.65,
         0.85
       ],
-      "max_wait_threshold_min": 3.0
+      "max_wait_threshold_min": 3.0,
+      "headcount": 0,
+      "est_wait_min": 0.0,
+      "status": "FREE_AVAILABLE",
+      "badge": "\ud83d\udfe2 Open & Free",
+      "congested": false
+    },
+    {
+      "id": "reg_3",
+      "name": "Counter 3 (Self-Checkout)",
+      "box": [
+        0.68,
+        0.2,
+        0.95,
+        0.85
+      ],
+      "max_wait_threshold_min": 3.0,
+      "headcount": 0,
+      "est_wait_min": 0.0,
+      "status": "FREE_AVAILABLE",
+      "badge": "\ud83d\udfe2 Open & Free",
+      "congested": false
     }
-  ]
+  ],
+  "shelf_roi": [
+    0.1,
+    0.15,
+    0.9,
+    0.85
+  ],
+  "queue_roi": [
+    0.08,
+    0.22,
+    0.92,
+    0.86
+  ],
+  "max_capacity": 11
 }

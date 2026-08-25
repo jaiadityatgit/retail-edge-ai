@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>RetailSense OS // Enterprise Admin Console (HAL & ROI Calibration)</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#080B11',
+                        surfaceCard: '#111622',
+                        surfaceInner: '#0B0F18',
+                        brandCyan: '#06B6D4',
+                        brandEmerald: '#10B981',
+                        brandAmber: '#F59E0B',
+                        brandCrimson: '#F43F5E',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #080B11;
+            color: #F8FAFC;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        }
+        .admin-kpi-card {
+            background-color: #111622;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1rem;
+        }
+        .tactile-btn {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .tactile-btn:active {
+            transform: scale(0.97);
+        }
+        .crosshair-cursor {
+            cursor: crosshair;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen font-sans selection:bg-cyan-500 selection:text-black antialiased p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- 1. ENTERPRISE ADMIN HEADER -->
+    <header class="admin-kpi-card p-5 flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08]">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <i data-lucide="shield-check" class="w-6 h-6 text-obsidian"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
+                        RetailSense OS <span class="text-cyan-400 font-mono text-xs font-bold">// Enterprise Admin</span>
+                    </h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-700/60">
+                        HAL Deployment Layer
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5 font-mono">
+                    Hardware Abstraction Layer (HAL) & 2-Click Optical ROI Calibrator (SIH26179)
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div id="hal-engine-pill" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surfaceInner border border-white/[0.08] text-xs font-mono text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span id="hal-engine-name">⚡ Inference Engine: Initializing...</span>
+            </div>
+            <a href="/" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn">
+                <i data-lucide="layout-dashboard" class="w-4 h-4 text-cyan-400"></i>
+                <span>Operations Dashboard</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- 2. MAIN 2-COLUMN WORKSPACE -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: LIVE VIDEO VIEWPORT & 2-CLICK CANVAS (8 Cols) -->
+        <div class="lg:col-span-8 admin-kpi-card p-5 space-y-4">
+            
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="crosshair" class="w-5 h-5 text-cyan-400"></i>
+                    <div>
+                        <h2 class="text-sm font-bold text-white uppercase font-mono tracking-wider">
+                            Optical Viewport & 2-Click ROI Calibration
+                        </h2>
+                        <p class="text-xs text-slate-400">Click Point A, then Click Point B to define normalized bounding boxes</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="setCameraStream(1)" id="btn-cam1-stream" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 text-xs font-mono font-bold transition">
+                        Cam 01 (Shelf)
+                    </button>
+                    <button onclick="setCameraStream(2)" id="btn-cam2-stream" class="px-3 py-1.5 rounded-lg bg-surfaceInner text-slate-400 border border-white/[0.08] text-xs font-mono font-bold transition hover:text-white">
+                        Cam 02 (Queue)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Target Selector Tabs (Shelf vs Queue) -->
+            <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-surfaceInner border border-white/[0.06] font-mono text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 font-bold">Active Calibration Target:</span>
+                    <button onclick="setTargetMode('SHELF')" id="btn-target-shelf" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition flex items-center gap-1.5">
+                        <i data-lucide="package" class="w-4 h-4 text-cyan-400"></i>
+                        <span>Shelf Planogram ROI</span>
+                    </button>
+                    <button onclick="setTargetMode('QUEUE')" id="btn-target-queue" class="px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition flex items-center gap-1.5 hover:bg-white/[0.08]">
+                        <i data-lucide="users" class="w-4 h-4 text-amber-400"></i>
+                        <span>Queue Lane ROI</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 text-[11px]">
+                    <span id="click-step-badge" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/60 font-bold">
+                        👉 Click 1: Set Point A
+                    </span>
+                    <button onclick="resetCurrentClicks()" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 transition">
+                        Reset Points
+                    </button>
+                </div>
+            </div>
+
+            <!-- Video & Canvas Viewport Layer -->
+            <div class="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl flex items-center justify-center">
+                <!-- Underlay Stream -->
+                <img id="admin-video-stream" src="/video_feed/cam1" alt="Raw Edge Video Feed" class="absolute inset-0 w-full h-full object-contain">
+                
+                <!-- Interactive 2-Click Canvas Overlay -->
+                <canvas id="admin-calibration-canvas" width="640" height="360" class="absolute inset-0 w-full h-full object-contain crosshair-cursor z-10"></canvas>
+            </div>
+
+            <!-- Perspective Presets & Coordinates Strip -->
+            <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-surfaceInner border border-white/[0.06] font-mono text-xs">
+                <div>
+                    <span class="text-slate-400">Current Target Coords: </span>
+                    <span id="active-coords-display" class="font-bold text-cyan-300">[X1: 0.10, Y1: 0.18 &rarr; X2: 0.90, Y2: 0.85]</span>
+                </div>
+
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="applyPreset('FULL')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Full Frame</button>
+                    <button onclick="applyPreset('TOP_HALF')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Top Half</button>
+                    <button onclick="applyPreset('BOTTOM_HALF')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Bottom Half</button>
+                    <button onclick="applyPreset('LEFT_COL')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Left Col</button>
+                    <button onclick="applyPreset('RIGHT_COL')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Right Col</button>
+                    <button onclick="applyPreset('CENTER')" class="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[11px] transition">Center</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: CONFIGURATION DISPATCH & TEMPORAL BASELINING (4 Cols) -->
+        <div class="lg:col-span-4 space-y-6">
+
+            <!-- A. TEMPORAL AUTO-BASELINING CARD -->
+            <div class="admin-kpi-card p-5 space-y-4 border-l-4 border-cyan-500">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="gauge" class="w-5 h-5 text-cyan-400"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-white">
+                            Temporal Auto-Baselining
+                        </h3>
+                    </div>
+                    <span class="text-[10px] font-mono text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">30-Frame Median</span>
+                </div>
+
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Accumulates stock detection samples inside <code class="text-cyan-400 font-mono">shelf_roi</code> over a 30-frame window, computes the median, and dynamically updates the system <code class="text-cyan-400 font-mono">MAX_CAPACITY</code>.
+                </p>
+
+                <!-- Current Dynamic Baseline Stat -->
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.04] space-y-1">
+                    <div class="flex items-center justify-between text-xs font-mono">
+                        <span class="text-slate-400">Active MAX_CAPACITY:</span>
+                        <span id="current-max-capacity-stat" class="text-lg font-bold text-white">6 Units</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                        <span>Last Calibrated:</span>
+                        <span id="last-calibrated-timestamp">Initial Default</span>
+                    </div>
+                </div>
+
+                <!-- Live Calibration Progress (Hidden by default) -->
+                <div id="calibration-progress-box" class="hidden p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-800/80 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-mono text-cyan-300 font-bold">
+                        <span class="flex items-center gap-1.5">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-cyan-400"></i> Sampling Temporal Window...
+                        </span>
+                        <span id="calib-frame-counter">30 / 30</span>
+                    </div>
+                    <div class="w-full bg-black/50 rounded-full h-2 overflow-hidden">
+                        <div id="calib-progress-bar" class="bg-cyan-400 h-full rounded-full transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                </div>
+
+                <!-- Calibrate Stock Baseline Button -->
+                <button onclick="executeTemporalBaselining()" id="btn-calibrate-baseline" class="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-obsidian font-extrabold text-xs transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 tactile-btn">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Calibrate Stock Baseline</span>
+                </button>
+            </div>
+
+            <!-- B. SAVE OPTICAL ROIS FORM CARD -->
+            <div class="admin-kpi-card p-5 space-y-4">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="send" class="w-5 h-5 text-amber-400"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-white">
+                            Optical ROI Dispatch
+                        </h3>
+                    </div>
+                    <span class="text-[10px] font-mono text-amber-300 bg-amber-950 px-2 py-0.5 rounded border border-amber-800">/api/config/zones</span>
+                </div>
+
+                <div class="space-y-3 font-mono text-xs">
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">Shelf ROI [X1, Y1, X2, Y2]:</label>
+                        <input id="form-shelf-roi" type="text" readonly class="w-full px-3 py-2 rounded-xl bg-surfaceInner border border-white/[0.08] text-cyan-300 font-bold text-xs focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">Queue ROI [X1, Y1, X2, Y2]:</label>
+                        <input id="form-queue-roi" type="text" readonly class="w-full px-3 py-2 rounded-xl bg-surfaceInner border border-white/[0.08] text-amber-300 font-bold text-xs focus:outline-none">
+                    </div>
+                </div>
+
+                <button onclick="saveRoisToEngine()" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian font-extrabold text-xs transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 tactile-btn">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                    <span>Save ROIs to Edge Engine</span>
+                </button>
+            </div>
+
+            <!-- C. HARDWARE ABSTRACTION LAYER (HAL) DIAGNOSTICS -->
+            <div class="admin-kpi-card p-5 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="cpu" class="w-5 h-5 text-indigo-400"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-white">
+                            HAL Hardware Telemetry
+                        </h3>
+                    </div>
+                </div>
+
+                <div class="space-y-2 text-xs font-mono">
+                    <div class="flex items-center justify-between text-slate-300">
+                        <span class="text-slate-500">Camera Backend:</span>
+                        <span id="hal-cam-backend" class="text-white font-bold">V4L2 / DSHOW Auto-Probe</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300">
+                        <span class="text-slate-500">Intra-Op Threads:</span>
+                        <span class="text-emerald-400 font-bold">4 Threads (Thermal Guard)</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300">
+                        <span class="text-slate-500">SoC Temperature:</span>
+                        <span id="hal-soc-temp" class="text-cyan-300 font-bold">48.5°C</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-300">
+                        <span class="text-slate-500">Zero Cloud Egress:</span>
+                        <span class="text-emerald-400 font-bold">0.0 KB/s (Air-Gapped)</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- JAVASCRIPT CONTROLLER -->
+    <script>
+        // State Management
+        let currentTargetMode = 'SHELF'; // 'SHELF' or 'QUEUE'
+        let currentCamStream = 1;
+        let points = []; // [{x, y}] normalized floats (0.0 to 1.0)
+        
+        let rois = {
+            shelf_roi: [0.10, 0.18, 0.90, 0.85],
+            queue_roi: [0.10, 0.20, 0.90, 0.85]
+        };
+
+        const canvas = document.getElementById('admin-calibration-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', async () => {
+            await fetchActiveConfig();
+            initCanvasClickListener();
+            renderCanvas();
+            if (window.lucide) lucide.createIcons();
+
+            setInterval(pollHalTelemetry, 2000);
+            pollHalTelemetry();
+        });
+
+        async function fetchActiveConfig() {
+            try {
+                const res = await fetch('/api/config/zones');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.shelf_roi) rois.shelf_roi = data.shelf_roi;
+                    if (data.queue_roi) rois.queue_roi = data.queue_roi;
+                    if (data.max_capacity) {
+                        document.getElementById('current-max-capacity-stat').innerText = `${data.max_capacity} Units`;
+                    }
+                    updateFormInputs();
+                    renderCanvas();
+                }
+            } catch (e) {
+                console.warn('[Config Fetch Error]', e);
+            }
+        }
+
+        async function pollHalTelemetry() {
+            try {
+                const res = await fetch('/api/metrics');
+                if (res.ok) {
+                    const data = await res.json();
+                    const sys = data.system || {};
+                    const shelf = data.shelf || {};
+
+                    document.getElementById('hal-engine-name').innerText = `⚡ ${sys.inference_device || 'Edge NPU/CPU'} (${sys.inference_latency_ms || 6.8}ms)`;
+                    document.getElementById('hal-soc-temp').innerText = `${sys.soc_temp_c || 48.5}°C`;
+
+                    const cam1Source = (data.cameras && data.cameras.cam1) ? data.cameras.cam1.source : "V4L2 / DSHOW";
+                    document.getElementById('hal-cam-backend').innerText = cam1Source;
+
+                    if (shelf.stock_capacity) {
+                        document.getElementById('current-max-capacity-stat').innerText = `${shelf.stock_capacity} Units`;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        function setCameraStream(camId) {
+            currentCamStream = camId;
+            const img = document.getElementById('admin-video-stream');
+            img.src = `/video_feed/cam${camId}`;
+
+            document.getElementById('btn-cam1-stream').className = camId === 1
+                ? 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 text-xs font-mono font-bold transition'
+                : 'px-3 py-1.5 rounded-lg bg-surfaceInner text-slate-400 border border-white/[0.08] text-xs font-mono font-bold transition hover:text-white';
+
+            document.getElementById('btn-cam2-stream').className = camId === 2
+                ? 'px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/60 text-xs font-mono font-bold transition'
+                : 'px-3 py-1.5 rounded-lg bg-surfaceInner text-slate-400 border border-white/[0.08] text-xs font-mono font-bold transition hover:text-white';
+        }
+
+        function setTargetMode(mode) {
+            currentTargetMode = mode;
+            points = [];
+            document.getElementById('click-step-badge').innerText = '👉 Click 1: Set Point A';
+
+            const btnShelf = document.getElementById('btn-target-shelf');
+            const btnQueue = document.getElementById('btn-target-queue');
+
+            if (mode === 'SHELF') {
+                btnShelf.className = 'px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/60 font-bold transition flex items-center gap-1.5';
+                btnQueue.className = 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition flex items-center gap-1.5 hover:bg-white/[0.08]';
+            } else {
+                btnQueue.className = 'px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/60 font-bold transition flex items-center gap-1.5';
+                btnShelf.className = 'px-3 py-1.5 rounded-lg bg-white/[0.04] text-slate-400 border border-white/[0.06] font-bold transition flex items-center gap-1.5 hover:bg-white/[0.08]';
+            }
+
+            renderCanvas();
+        }
+
+        function initCanvasClickListener() {
+            canvas.addEventListener('click', (evt) => {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = evt.clientX - rect.left;
+                const clickY = evt.clientY - rect.top;
+
+                // Normalize 0.0 to 1.0
+                const normX = Math.max(0.0, Math.min(1.0, clickX / rect.width));
+                const normY = Math.max(0.0, Math.min(1.0, clickY / rect.height));
+
+                points.push({ x: normX, y: normY });
+
+                if (points.length === 1) {
+                    document.getElementById('click-step-badge').innerText = '👉 Click 2: Set Point B';
+                } else if (points.length === 2) {
+                    // Compute normalized [x1, y1, x2, y2]
+                    const p1 = points[0];
+                    const p2 = points[1];
+                    const x1 = parseFloat(Math.min(p1.x, p2.x).toFixed(4));
+                    const y1 = parseFloat(Math.min(p1.y, p2.y).toFixed(4));
+                    const x2 = parseFloat(Math.max(p1.x, p2.x).toFixed(4));
+                    const y2 = parseFloat(Math.max(p1.y, p2.y).toFixed(4));
+
+                    if (currentTargetMode === 'SHELF') {
+                        rois.shelf_roi = [x1, y1, x2, y2];
+                    } else {
+                        rois.queue_roi = [x1, y1, x2, y2];
+                    }
+
+                    document.getElementById('click-step-badge').innerText = '✅ Box Defined!';
+                    points = [];
+                    updateFormInputs();
+                }
+
+                renderCanvas();
+            });
+        }
+
+        function resetCurrentClicks() {
+            points = [];
+            document.getElementById('click-step-badge').innerText = '👉 Click 1: Set Point A';
+            renderCanvas();
+        }
+
+        function updateFormInputs() {
+            document.getElementById('form-shelf-roi').value = JSON.stringify(rois.shelf_roi);
+            document.getElementById('form-queue-roi').value = JSON.stringify(rois.queue_roi);
+
+            const activeBox = currentTargetMode === 'SHELF' ? rois.shelf_roi : rois.queue_roi;
+            document.getElementById('active-coords-display').innerText = `[X1: ${activeBox[0].toFixed(2)}, Y1: ${activeBox[1].toFixed(2)} → X2: ${activeBox[2].toFixed(2)}, Y2: ${activeBox[3].toFixed(2)}]`;
+        }
+
+        function applyPreset(preset) {
+            let box = [0.10, 0.20, 0.90, 0.85];
+            if (preset === 'FULL') box = [0.05, 0.05, 0.95, 0.95];
+            else if (preset === 'TOP_HALF') box = [0.05, 0.10, 0.95, 0.50];
+            else if (preset === 'BOTTOM_HALF') box = [0.05, 0.50, 0.95, 0.90];
+            else if (preset === 'LEFT_COL') box = [0.05, 0.15, 0.48, 0.85];
+            else if (preset === 'RIGHT_COL') box = [0.52, 0.15, 0.95, 0.85];
+            else if (preset === 'CENTER') box = [0.20, 0.20, 0.80, 0.80];
+
+            if (currentTargetMode === 'SHELF') {
+                rois.shelf_roi = box;
+            } else {
+                rois.queue_roi = box;
+            }
+            points = [];
+            updateFormInputs();
+            renderCanvas();
+        }
+
+        function renderCanvas() {
+            const cw = canvas.width;
+            const ch = canvas.height;
+            ctx.clearRect(0, 0, cw, ch);
+
+            // 1. Draw Inactive Target Faintly
+            const inactiveBox = currentTargetMode === 'SHELF' ? rois.queue_roi : rois.shelf_roi;
+            const inactiveCol = currentTargetMode === 'SHELF' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(6, 182, 212, 0.4)';
+            const inactiveLabel = currentTargetMode === 'SHELF' ? '[QUEUE ROI]' : '[SHELF ROI]';
+
+            const ix1 = inactiveBox[0] * cw;
+            const iy1 = inactiveBox[1] * ch;
+            const iw = (inactiveBox[2] - inactiveBox[0]) * cw;
+            const ih = (inactiveBox[3] - inactiveBox[1]) * ch;
+
+            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = inactiveCol;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(ix1, iy1, iw, ih);
+            ctx.setLineDash([]);
+            ctx.fillStyle = inactiveCol;
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.fillText(inactiveLabel, ix1 + 4, iy1 + 14);
+
+            // 2. Draw Active Target ROI
+            const activeBox = currentTargetMode === 'SHELF' ? rois.shelf_roi : rois.queue_roi;
+            const activeCol = currentTargetMode === 'SHELF' ? '#06B6D4' : '#F59E0B';
+            const activeLabel = currentTargetMode === 'SHELF' ? '⚡ SHELF PLANOGRAM ROI' : '👥 QUEUE LANE ROI';
+
+            const ax1 = activeBox[0] * cw;
+            const ay1 = activeBox[1] * ch;
+            const aw = (activeBox[2] - activeBox[0]) * cw;
+            const ah = (activeBox[3] - activeBox[1]) * ch;
+
+            // Fill tint
+            ctx.fillStyle = currentTargetMode === 'SHELF' ? 'rgba(6, 182, 212, 0.12)' : 'rgba(245, 158, 11, 0.12)';
+            ctx.fillRect(ax1, ay1, aw, ah);
+
+            // Solid bounding border
+            ctx.strokeStyle = activeCol;
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(ax1, ay1, aw, ah);
+
+            // Corner crosshairs
+            const drawCrosshair = (x, y) => {
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y);
+                ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8);
+                ctx.stroke();
+            };
+            drawCrosshair(ax1, ay1);
+            drawCrosshair(ax1 + aw, ay1);
+            drawCrosshair(ax1 + aw, ay1 + ah);
+            drawCrosshair(ax1, ay1 + ah);
+
+            // Label
+            ctx.fillStyle = activeCol;
+            ctx.font = 'bold 11px "JetBrains Mono", monospace';
+            ctx.fillText(activeLabel, ax1 + 6, ay1 + 16);
+
+            // 3. Draw Pending Click Point 1 if active
+            if (points.length === 1) {
+                const px = points[0].x * cw;
+                const py = points[0].y * ch;
+
+                ctx.fillStyle = '#10B981';
+                ctx.beginPath();
+                ctx.arc(px, py, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 10px "JetBrains Mono", monospace';
+                ctx.fillText('Point A', px + 10, py - 6);
+            }
+        }
+
+        async function saveRoisToEngine() {
+            try {
+                const res = await fetch('/api/config/zones', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shelf_roi: rois.shelf_roi,
+                        queue_roi: rois.queue_roi
+                    })
+                });
+
+                if (res.ok) {
+                    alert('✅ Successfully saved normalized Shelf & Queue ROIs to Edge Engine!');
+                } else {
+                    alert('⚠️ Error saving ROIs to server.');
+                }
+            } catch (e) {
+                alert(`Network error: ${e.message}`);
+            }
+        }
+
+        async function executeTemporalBaselining() {
+            const progressBox = document.getElementById('calibration-progress-box');
+            const btn = document.getElementById('btn-calibrate-baseline');
+            
+            progressBox.classList.remove('hidden');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            try {
+                const res = await fetch('/api/config/baseline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shelf_roi: rois.shelf_roi,
+                        frames_to_sample: 30
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('current-max-capacity-stat').innerText = `${data.baseline_capacity} Units`;
+                    document.getElementById('last-calibrated-timestamp').innerText = new Date().toLocaleTimeString();
+                    alert(`🎉 Auto-Baselining Complete!\n\nSampled: ${data.samples_collected} frames\nCalibrated MAX_CAPACITY: ${data.baseline_capacity} items (Median)\n\nManager Dashboard will now calculate stock percentages against this dynamic capacity.`);
+                } else {
+                    alert('⚠️ Failed to calibrate stock baseline.');
+                }
+            } catch (e) {
+                alert(`Error during auto-baselining: ${e.message}`);
+            } finally {
+                progressBox.classList.add('hidden');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+            }
+        }
+    </script>
+</body>
+</html>

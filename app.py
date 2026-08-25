@@ -80,13 +80,58 @@ QUEUE_TARGET_CLASS_IDS = [0]  # Shopper (Person ONLY)
 # 2. ON-DEVICE NPU & HARDWARE ACCELERATION PROFILER
 # ==============================================================================
 
+# Global state dictionary for dynamic baseline capacity
+MAX_CAPACITY: Dict[str, Any] = {
+    "shelf": 6,
+    "calibrated_at": None,
+    "samples": []
+}
+
+
+def discover_camera(indices: Tuple[int, ...] = (0, 1, 2)) -> Tuple[Optional[cv2.VideoCapture], Optional[int], str]:
+    """
+    Hardware Abstraction Layer (HAL) Camera Discovery:
+    Probes camera indices (0, 1, 2) across OS-appropriate backends
+    (cv2.CAP_V4L2 for Linux/Raspberry Pi, cv2.CAP_DSHOW/cv2.CAP_MSMF for Windows,
+    cv2.CAP_AVFOUNDATION for macOS) until a valid frame is returned.
+    """
+    system_name = platform.system().lower()
+    if system_name == "linux":
+        backends = [("V4L2", cv2.CAP_V4L2), ("ANY", cv2.CAP_ANY)]
+    elif system_name == "windows":
+        backends = [("DSHOW", cv2.CAP_DSHOW), ("MSMF", cv2.CAP_MSMF), ("ANY", cv2.CAP_ANY)]
+    elif system_name == "darwin":
+        backends = [("AVFOUNDATION", cv2.CAP_AVFOUNDATION), ("ANY", cv2.CAP_ANY)]
+    else:
+        backends = [("ANY", cv2.CAP_ANY)]
+
+    for idx in indices:
+        for b_name, b_api in backends:
+            try:
+                cap = cv2.VideoCapture(idx, b_api)
+                if cap and cap.isOpened():
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        print(f"[HAL Camera] Successfully attached physical camera at Index {idx} via {b_name} backend ({frame.shape[1]}x{frame.shape[0]}).")
+                        return cap, idx, b_name
+                    else:
+                        cap.release()
+            except Exception:
+                pass
+
+    print("[HAL Camera] No physical camera returned valid frames. Operating in high-performance synthetic telemetry mode.")
+    return None, None, "Synthetic"
+
+
 def detect_npu_and_hardware_engine() -> Tuple[str, bool, str, str]:
     """
     Auto-detects NPU and hardware acceleration:
     Priority 1: OpenVINO NPU (Intel AI Boost / AMD XDNA / Qualcomm Hexagon)
     Priority 2: DirectML NPU / iGPU Execution Provider
-    Priority 3: NVIDIA CUDA GPU
-    Priority 4: Optimized Multi-Core CPU
+    Priority 3: NVIDIA CUDA GPU (Device 0, FP16)
+    Priority 4: Multi-Threaded CPU (Intra-op Clamped for ARM64/RPi Thermal Protection)
     """
     # 1. Check for OpenVINO NPU Support
     try:
@@ -108,15 +153,15 @@ def detect_npu_and_hardware_engine() -> Tuple[str, bool, str, str]:
     except Exception:
         pass
 
-    # 3. Check for PyTorch CUDA GPU
+    # 3. Check for PyTorch CUDA GPU (device=0)
     if torch.cuda.is_available():
         gpu_name = torch.cuda.get_device_name(0)
-        return 'cuda:0', True, f"⚡ NVIDIA GPU ({gpu_name})", "CUDA"
+        return '0', True, f"⚡ NVIDIA GPU 0 ({gpu_name})", "CUDA"
 
-    # 4. Multi-Threaded CPU Fallback
+    # 4. Multi-Threaded CPU Fallback (Intra-op threads clamped for ARM64 thermal protection)
     num_threads = min(4, psutil.cpu_count(logical=False) or 4)
     torch.set_num_threads(num_threads)
-    return 'cpu', False, f"⚡ CPU ({platform.machine()} Multi-Threaded)", "CPU"
+    return 'cpu', False, f"⚡ CPU ({platform.machine()} Multi-Threaded, {num_threads} Threads)", "CPU"
 
 
 DEVICE, USE_HALF, DEVICE_NAME, BACKEND_TYPE = detect_npu_and_hardware_engine()
@@ -779,20 +824,15 @@ class DualCameraVisionEngine:
             time.sleep(10.0)
             if self.cam1_use_synthetic:
                 try:
-                    test_cap = cv2.VideoCapture(0, cv2.CAP_V4L2) if platform.system().lower() == "linux" else cv2.VideoCapture(0)
-                    if test_cap and test_cap.isOpened():
-                        ret, test_frame = test_cap.read()
-                        if ret and test_frame is not None:
-                            print("[Watchdog] Physical camera re-detected! Seamlessly transitioning from synthetic.")
-                            with self.lock1:
-                                if self.cam1_cap and self.cam1_cap.isOpened():
-                                    self.cam1_cap.release()
-                                self.cam1_cap = test_cap
-                                self.cam1_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                                self.cam1_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-                                self.cam1_use_synthetic = False
-                        else:
-                            test_cap.release()
+                    test_cap, test_idx, b_name = discover_camera((0, 1, 2))
+                    if test_cap is not None:
+                        print(f"[Watchdog] Physical camera re-detected at Index {test_idx} via {b_name}! Seamlessly transitioning from synthetic.")
+                        with self.lock1:
+                            if self.cam1_cap and self.cam1_cap.isOpened():
+                                self.cam1_cap.release()
+                            self.cam1_cap = test_cap
+                            self.cam1_use_synthetic = False
+                            self.cam1_source = f"Physical Camera {test_idx} ({b_name})"
                 except Exception:
                     pass
 
@@ -883,13 +923,13 @@ class DualCameraVisionEngine:
                     it for it in items
                     if zx1 <= it["centroid"][0] <= zx2 and zy1 <= it["centroid"][1] <= zy2
                 ]
-                prev_count = zone.get("current_count", zone.get("capacity", 6))
+                prev_count = zone.get("current_count", zone.get("capacity", MAX_CAPACITY["shelf"]))
                 cur_count = len(zone_items)
                 zone["current_count"] = cur_count
-                zone["capacity_pct"] = int((cur_count / max(1, zone.get("capacity", 6))) * 100)
+                zone["capacity_pct"] = int((cur_count / max(1, zone.get("capacity", MAX_CAPACITY["shelf"]))) * 100)
 
                 total_items += cur_count
-                total_cap += zone.get("capacity", 6)
+                total_cap += zone.get("capacity", MAX_CAPACITY["shelf"])
 
                 # Track delta
                 if cur_count < prev_count:
@@ -1060,23 +1100,18 @@ class DualCameraVisionEngine:
     def _run_cam1(self):
         """Worker thread for Camera 1 (Primary / Webcam) with frame decimation."""
         try:
-            if platform.system().lower() == "linux":
-                self.cam1_cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
-            else:
-                self.cam1_cap = cv2.VideoCapture(0)
-
-            if self.cam1_cap and self.cam1_cap.isOpened():
-                ret, test = self.cam1_cap.read()
-                if ret and test is not None:
-                    self.cam1_use_synthetic = False
-                    self.cam1_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                    self.cam1_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
-                else:
-                    self.cam1_use_synthetic = True
+            cap, idx, b_name = discover_camera((0, 1, 2))
+            if cap is not None:
+                self.cam1_cap = cap
+                self.cam1_use_synthetic = False
+                self.cam1_source = f"Physical Camera {idx} ({b_name})"
             else:
                 self.cam1_use_synthetic = True
-        except Exception:
+                self.cam1_source = "Synthetic Shelf Stream"
+        except Exception as e:
+            print(f"[HAL Camera Init Error] {e}")
             self.cam1_use_synthetic = True
+            self.cam1_source = "Synthetic Shelf Stream"
 
         fps_timer = time.time()
         fps_frames = 0
@@ -1325,6 +1360,18 @@ async def serve_presentation():
     return HTMLResponse("<h2>Presentation slide deck initializing. static/presentation.html not found.</h2>")
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin():
+    """Serves the isolated Enterprise Admin ROI & HAL Calibration Console."""
+    admin_path = STATIC_DIR / "admin.html"
+    if admin_path.exists():
+        return FileResponse(
+            str(admin_path),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+        )
+    return HTMLResponse("<h2>Admin Calibration Console initializing. static/admin.html not found.</h2>")
+
+
 def gen_cam1_stream():
     try:
         while True:
@@ -1417,39 +1464,187 @@ async def health_check():
     }
 
 
-# --- Multi-Zone Planogram API ---
+# --- Multi-Zone Planogram & Calibration API ---
 
 class MultiZonesConfigRequest(BaseModel):
     shelf_zones: Optional[List[Dict[str, Any]]] = None
     queue_lanes: Optional[List[Dict[str, Any]]] = None
+    shelf_roi: Optional[List[float]] = None
+    queue_roi: Optional[List[float]] = None
+    max_capacity: Optional[int] = None
 
 
 @app.get("/api/config/zones")
 async def get_zones_config():
-    """Returns the multi-tier shelf zones and multi-register queue lanes."""
+    """Returns the multi-tier shelf zones, multi-register queue lanes, single ROIs, and max capacity."""
     return {
         "shelf_zones": engine.shelf_zones,
-        "queue_lanes": engine.queue_lanes
+        "queue_lanes": engine.queue_lanes,
+        "shelf_roi": [engine.shelf_roi["x1"], engine.shelf_roi["y1"], engine.shelf_roi["x2"], engine.shelf_roi["y2"]],
+        "queue_roi": [engine.queue_roi["x1"], engine.queue_roi["y1"], engine.queue_roi["x2"], engine.queue_roi["y2"]],
+        "max_capacity": MAX_CAPACITY["shelf"]
     }
 
 
 @app.post("/api/config/zones")
 async def update_zones_config(req: MultiZonesConfigRequest):
-    """Updates multi-tier shelf zones and multi-register queue lanes, saving to config.json."""
+    """
+    Updates multi-tier shelf zones, queue lanes, or normalized ROIs, saving to config.json.
+    Accepts both multi-zone payload ({ shelf_zones, queue_lanes }) and
+    admin ROI payload ({ shelf_roi: [x1,y1,x2,y2], queue_roi: [x1,y1,x2,y2] }).
+    """
+    if req.shelf_roi is not None and len(req.shelf_roi) == 4:
+        engine.shelf_roi = {
+            "x1": float(req.shelf_roi[0]),
+            "y1": float(req.shelf_roi[1]),
+            "x2": float(req.shelf_roi[2]),
+            "y2": float(req.shelf_roi[3])
+        }
+        if engine.shelf_zones and len(engine.shelf_zones) > 0:
+            engine.shelf_zones[0]["box"] = req.shelf_roi
+        else:
+            engine.shelf_zones = [{
+                "id": "shelf_tier_1",
+                "name": "Tier 1 - Calibrated Section",
+                "box": req.shelf_roi,
+                "capacity": MAX_CAPACITY["shelf"],
+                "low_stock_threshold": 2
+            }]
+
+    if req.queue_roi is not None and len(req.queue_roi) == 4:
+        engine.queue_roi = {
+            "x1": float(req.queue_roi[0]),
+            "y1": float(req.queue_roi[1]),
+            "x2": float(req.queue_roi[2]),
+            "y2": float(req.queue_roi[3])
+        }
+        if engine.queue_lanes and len(engine.queue_lanes) > 0:
+            engine.queue_lanes[0]["box"] = req.queue_roi
+        else:
+            engine.queue_lanes = [{
+                "id": "reg_1",
+                "name": "Counter 1 (Main Queue)",
+                "box": req.queue_roi,
+                "max_wait_threshold_min": 3.0
+            }]
+
     if req.shelf_zones is not None:
         engine.shelf_zones = req.shelf_zones
     if req.queue_lanes is not None:
         engine.queue_lanes = req.queue_lanes
+    if req.max_capacity is not None:
+        MAX_CAPACITY["shelf"] = int(req.max_capacity)
+        engine.shelf_capacity = int(req.max_capacity)
 
     save_zones_config({
         "shelf_zones": engine.shelf_zones,
-        "queue_lanes": engine.queue_lanes
+        "queue_lanes": engine.queue_lanes,
+        "shelf_roi": [engine.shelf_roi["x1"], engine.shelf_roi["y1"], engine.shelf_roi["x2"], engine.shelf_roi["y2"]],
+        "queue_roi": [engine.queue_roi["x1"], engine.queue_roi["y1"], engine.queue_roi["x2"], engine.queue_roi["y2"]],
+        "max_capacity": MAX_CAPACITY["shelf"]
     })
 
     return {
         "status": "success",
         "shelf_zones": engine.shelf_zones,
-        "queue_lanes": engine.queue_lanes
+        "queue_lanes": engine.queue_lanes,
+        "shelf_roi": [engine.shelf_roi["x1"], engine.shelf_roi["y1"], engine.shelf_roi["x2"], engine.shelf_roi["y2"]],
+        "queue_roi": [engine.queue_roi["x1"], engine.queue_roi["y1"], engine.queue_roi["x2"], engine.queue_roi["y2"]],
+        "max_capacity": MAX_CAPACITY["shelf"]
+    }
+
+
+# --- Temporal Auto-Baselining API ---
+
+class BaselineCalibrationRequest(BaseModel):
+    shelf_roi: Optional[List[float]] = None
+    frames_to_sample: int = 30
+
+
+@app.post("/api/config/baseline")
+async def calibrate_stock_baseline(req: Optional[BaselineCalibrationRequest] = None):
+    """
+    Temporal Auto-Baselining Engine (SIH26179):
+    Accumulates detected item counts inside the shelf_roi over a 30-frame temporal window.
+    Calculates the median count and dynamically updates MAX_CAPACITY, engine.shelf_capacity,
+    and shelf_zones capacity in config.json.
+    """
+    if req and req.shelf_roi is not None and len(req.shelf_roi) == 4:
+        engine.shelf_roi = {
+            "x1": float(req.shelf_roi[0]),
+            "y1": float(req.shelf_roi[1]),
+            "x2": float(req.shelf_roi[2]),
+            "y2": float(req.shelf_roi[3])
+        }
+        if engine.shelf_zones:
+            engine.shelf_zones[0]["box"] = req.shelf_roi
+
+    sample_target = (req.frames_to_sample if req else 30) or 30
+    counts = []
+
+    # Sample across temporal window
+    for _ in range(sample_target):
+        if not engine.cam1_use_synthetic and engine.cam1_cap and engine.cam1_cap.isOpened():
+            ret, frame = engine.cam1_cap.read()
+            if ret and frame is not None:
+                dets = engine._run_inference(frame, "SHELF")
+                h, w = frame.shape[:2]
+            else:
+                frame, dets = engine.cam1_synthetic.generate()
+                h, w = frame.shape[:2]
+        else:
+            frame, dets = engine.cam1_synthetic.generate()
+            h, w = frame.shape[:2]
+
+        box = engine.shelf_zones[0].get("box", [0.10, 0.15, 0.90, 0.40]) if engine.shelf_zones else [0.1, 0.18, 0.9, 0.85]
+        zx1, zy1 = int(box[0] * w), int(box[1] * h)
+        zx2, zy2 = int(box[2] * w), int(box[3] * h)
+
+        items_in_roi = [
+            d for d in dets
+            if d.get("class_id") != 0 and zx1 <= d["centroid"][0] <= zx2 and zy1 <= d["centroid"][1] <= zy2
+        ]
+        counts.append(len(items_in_roi))
+        time.sleep(0.01)
+
+    median_count = int(np.median(counts)) if len(counts) > 0 else 6
+    median_count = max(1, median_count)
+
+    with engine.state_lock:
+        MAX_CAPACITY["shelf"] = median_count
+        MAX_CAPACITY["calibrated_at"] = datetime.datetime.now().isoformat()
+        MAX_CAPACITY["samples"] = counts
+        engine.shelf_capacity = median_count
+        if engine.shelf_zones and len(engine.shelf_zones) > 0:
+            engine.shelf_zones[0]["capacity"] = median_count
+            engine.shelf_zones[0]["low_stock_threshold"] = max(1, int(median_count * 0.25))
+            cur_z_count = engine.shelf_zones[0].get("current_count", engine.shelf_stock_count)
+            engine.shelf_zones[0]["capacity_pct"] = int((cur_z_count / max(1, median_count)) * 100)
+        engine.shelf_percentage = int((engine.shelf_stock_count / max(1, engine.shelf_capacity)) * 100)
+
+    save_zones_config({
+        "shelf_zones": engine.shelf_zones,
+        "queue_lanes": engine.queue_lanes,
+        "shelf_roi": [engine.shelf_roi["x1"], engine.shelf_roi["y1"], engine.shelf_roi["x2"], engine.shelf_roi["y2"]],
+        "queue_roi": [engine.queue_roi["x1"], engine.queue_roi["y1"], engine.queue_roi["x2"], engine.queue_roi["y2"]],
+        "max_capacity": MAX_CAPACITY["shelf"]
+    })
+
+    engine.db.log_event(
+        "STOCK_BASELINED",
+        "SHELF",
+        f"Temporal auto-baselining calibrated MAX_CAPACITY to {median_count} units (median over {len(counts)} frames).",
+        "INFO"
+    )
+
+    return {
+        "status": "success",
+        "baseline_capacity": median_count,
+        "max_capacity": median_count,
+        "samples_collected": len(counts),
+        "samples": counts,
+        "shelf_roi": [engine.shelf_roi["x1"], engine.shelf_roi["y1"], engine.shelf_roi["x2"], engine.shelf_roi["y2"]],
+        "calibrated_at": MAX_CAPACITY["calibrated_at"]
     }
 
 
