@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>RetailSense OS // EdgeRetail AI — Store Operations Console</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#080B11',
+                        surfaceCard: '#111622',
+                        surfaceInner: '#0B0F18',
+                        brand: {
+                            cyan: '#06B6D4',
+                            emerald: '#10B981',
+                            amber: '#F59E0B',
+                            crimson: '#F43F5E',
+                            indigo: '#6366F1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --ease-spring: cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        body {
+            background-color: #080B11;
+            color: #F8FAFC;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #080B11;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1E2538;
+            border-radius: 4px;
+        }
+        /* Enterprise Glass Card */
+        .ops-kpi-card {
+            background: rgba(17, 22, 34, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(20px);
+            border-radius: 1.25rem;
+            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.65);
+            transition: border-color 200ms ease, box-shadow 200ms ease;
+        }
+        .ops-kpi-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+        .tactile-btn {
+            transition-property: transform, background-color, border-color, box-shadow;
+            transition-duration: 150ms;
+            transition-timing-function: var(--ease-spring);
+        }
+        .tactile-btn:active {
+            transform: scale(0.97);
+        }
+        /* Glow Accents */
+        .glow-red {
+            box-shadow: 0 0 30px -4px rgba(244, 63, 94, 0.4);
+            border-color: rgba(244, 63, 94, 0.6) !important;
+        }
+        .glow-amber {
+            box-shadow: 0 0 30px -4px rgba(245, 158, 11, 0.35);
+            border-color: rgba(245, 158, 11, 0.5) !important;
+        }
+        .glow-green {
+            box-shadow: 0 0 30px -4px rgba(16, 185, 129, 0.3);
+            border-color: rgba(16, 185, 129, 0.45) !important;
+        }
+        canvas.roi-interactive {
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-obsidian text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-black">
+
+    <!-- Ambient Illumination Backdrop -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div class="absolute top-[-5%] left-1/4 w-[750px] h-[380px] bg-cyan-500/[0.04] rounded-full blur-[170px]"></div>
+        <div class="absolute bottom-[-5%] right-1/4 w-[650px] h-[380px] bg-indigo-500/[0.04] rounded-full blur-[180px]"></div>
+    </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="relative z-10 max-w-[1780px] mx-auto p-4 lg:p-6 space-y-5">
+
+        <!-- A. EXECUTIVE HEADER BAR -->
+        <header class="flex flex-wrap items-center justify-between gap-4 ops-kpi-card px-6 py-4">
+            
+            <!-- Left: Branding & Status -->
+            <div class="flex items-center gap-4">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 ring-1 ring-white/20 shrink-0">
+                    <i data-lucide="layers" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+                            RetailSense OS <span class="text-cyan-400 font-mono text-xs font-bold">// EdgeRetail AI</span>
+                        </h1>
+                        <span class="text-xs text-slate-400 font-normal">• Store #104</span>
+                        <div id="system-status-pill" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/60">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            ALL SYSTEMS OPTIMAL
+                        </div>
+                        <div id="npu-status-pill" class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 shadow-sm">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 text-indigo-400"></i>
+                            <span id="npu-status-text">⚡ NPU / Hardware Engine</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 font-normal mt-0.5">Multi-Shelf Planograms, Multi-Register Traffic Matrix & On-Device NPU Acceleration</p>
+                </div>
+            </div>
+
+            <!-- Right: Action Buttons & Navigation -->
+            <div class="flex flex-wrap items-center gap-3">
+                
+                <!-- Audio Mute / Unmute Toggle -->
+                <button id="audio-toggle-btn" onclick="toggleAudioChimes()" title="Toggle Dispatch Sound Chimes" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn">
+                    <i data-lucide="volume-2" id="audio-toggle-icon" class="w-4 h-4 text-emerald-400"></i>
+                    <span id="audio-toggle-label">Audio: On</span>
+                </button>
+
+                <!-- Daily Shift Report Modal Button -->
+                <button onclick="openShiftSummaryModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600/60 text-xs font-bold text-emerald-200 transition tactile-btn shadow-md shadow-emerald-950/30">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Daily Shift Report</span>
+                </button>
+
+                <!-- Connect Mobile Phone Button -->
+                <button onclick="toggleMobileModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-xs font-bold text-cyan-200 transition tactile-btn shadow-md shadow-cyan-950/30">
+                    <i data-lucide="smartphone" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Connect Phone Ingest</span>
+                </button>
+
+                <!-- Engineering Telemetry Drawer Toggle -->
+                <button onclick="toggleEngineeringDrawer()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-xs font-mono font-bold text-slate-200 transition tactile-btn">
+                    <i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i>
+                    <span>Engineering Specs ⚡</span>
+                </button>
+
+                <!-- Admin Console Link -->
+                <a href="/admin" class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-600/60 text-xs font-bold text-cyan-200 transition tactile-btn shadow-md shadow-cyan-950/40">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Admin Calibration</span>
+                </a>
+
+                <!-- Pitch Deck Link -->
+                <a href="/presentation" class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-600/60 text-xs font-bold text-indigo-200 transition tactile-btn shadow-md shadow-indigo-950/40">
+                    <i data-lucide="presentation" class="w-4 h-4 text-indigo-400"></i>
+                    <span>Pitch Deck</span>
+                    <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-indigo-300 transition-transform group-hover:translate-x-0.5"></i>
+                </a>
+
+            </div>
+
+        </header>
+
+        <!-- B. EXECUTIVE TOP ROW: ACTIONABLE RETAIL KPI CARDS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+            <!-- 1. Multi-Shelf Planogram Matrix Card -->
+            <div id="shelf-kpi-card" class="ops-kpi-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 rounded-xl bg-cyan-950/80 text-cyan-400 border border-cyan-800/50">
+                            <i data-lucide="package" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Multi-Shelf Planograms</h2>
+                            <p class="text-[11px] text-slate-400">Beverages & Packaged Goods Sections</p>
+                        </div>
+                    </div>
+                    <span id="shelf-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                        🟢 Inventory Healthy
+                    </span>
+                </div>
+
+                <!-- Dynamic Multi-Tier Shelf Sections Grid -->
+                <div id="multi-shelf-sections-container" class="space-y-2.5">
+                    <!-- Populated dynamically via app.js -->
+                </div>
+
+                <!-- Live Transactional Delta Badge -->
+                <div class="pt-2 border-t border-white/[0.04] flex items-center justify-between text-xs font-mono">
+                    <span class="text-slate-400 text-[11px]">Latest Inventory Action:</span>
+                    <span id="shelf-last-transaction" class="font-bold text-emerald-300 text-[11px] truncate">🟢 Initial Stock Synchronized</span>
+                </div>
+            </div>
+
+            <!-- 2. Multi-Register Queue Operations Card -->
+            <div id="queue-kpi-card" class="ops-kpi-card p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2.5 rounded-xl bg-amber-950/80 text-amber-400 border border-amber-800/50">
+                            <i data-lucide="users" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xs font-mono font-bold uppercase tracking-wide text-slate-200">Multi-Register Checkout Traffic</h2>
+                            <p class="text-[11px] text-slate-400">Dual POS Counters & Smart Traffic Director</p>
+                        </div>
+                    </div>
+                    <span id="queue-status-pill" class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
+                        🟢 Registers Flowing Smoothly
+                    </span>
+                </div>
+
+                <!-- Dynamic Multi-Register Grid -->
+                <div id="multi-queue-lanes-container" class="grid grid-cols-2 gap-3 pt-1">
+                    <!-- Populated dynamically via app.js -->
+                </div>
+
+                <!-- Smart Traffic Director Recommendation Banner -->
+                <div id="smart-traffic-banner" class="p-3 rounded-xl bg-cyan-950/70 border border-cyan-700/60 text-xs font-mono text-cyan-200 flex items-center gap-2.5 shadow-sm">
+                    <i data-lucide="compass" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+                    <span id="smart-traffic-text" class="font-bold">🟢 All checkout registers are flowing smoothly.</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- C. CENTER STAGE: DUAL VIDEO MONITORING GRID -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            <!-- Primary Feed: Camera 1 (Webcam / Shelf) -->
+            <div class="ops-kpi-card p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i>
+                        <span class="text-xs font-bold text-white font-mono uppercase">Primary Feed // Cam 01</span>
+                    </div>
+
+                    <!-- Actions: ROI Calibrate, Role Switcher & Live FPS Tag -->
+                    <div class="flex items-center gap-2">
+                        <button onclick="openCalibrationModal(1)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-600/50 text-[11px] font-mono text-cyan-300 transition tactile-btn shadow">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                            <span>Calibrate ROI</span>
+                        </button>
+                        <select onchange="changeCameraRole(1, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-cyan-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                            <option value="SHELF" selected>🛍️ Shelf Monitor</option>
+                            <option value="QUEUE">💳 Queue Monitor</option>
+                        </select>
+                        <span id="cam1-fps-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 tabular-nums">28.0 FPS</span>
+                    </div>
+                </div>
+
+                <!-- 16:9 Viewport -->
+                <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/[0.04] flex items-center justify-center">
+                    <img id="video-stream-cam1" src="/video_feed/cam1" alt="Primary Camera Stream" class="w-full h-full object-contain" />
+                    
+                    <div class="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-[10px] font-mono text-cyan-300 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>WEBCAM (V4L2) • 640x360</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secondary Feed: Camera 2 (Mobile Ingest / Queue) -->
+            <div class="ops-kpi-card p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="smartphone" class="w-4 h-4 text-amber-400"></i>
+                        <span class="text-xs font-bold text-white font-mono uppercase">Secondary Feed // Cam 02</span>
+                        <span id="cam2-source-badge" class="px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-white/[0.04] border border-white/[0.06]">🖥️ Secondary Stream</span>
+                    </div>
+
+                    <!-- Actions: ROI Calibrate, Role Switcher & Live FPS Tag -->
+                    <div class="flex items-center gap-2">
+                        <button onclick="openCalibrationModal(2)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-600/50 text-[11px] font-mono text-amber-300 transition tactile-btn shadow">
+                            <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+                            <span>Calibrate ROI</span>
+                        </button>
+                        <select onchange="changeCameraRole(2, this.value)" class="bg-surfaceInner border border-white/10 text-xs font-mono text-amber-300 rounded-lg px-2.5 py-1 focus:outline-none focus:border-amber-500 cursor-pointer">
+                            <option value="QUEUE" selected>💳 Queue Monitor</option>
+                            <option value="SHELF">🛍️ Shelf Monitor</option>
+                        </select>
+                        <span id="cam2-fps-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 tabular-nums">28.0 FPS</span>
+                    </div>
+                </div>
+
+                <!-- 16:9 Viewport -->
+                <div class="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/[0.04] flex items-center justify-center">
+                    <img id="video-stream-cam2" src="/video_feed/cam2" alt="Secondary Camera Stream" class="w-full h-full object-contain" />
+                    
+                    <div class="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-[10px] font-mono text-amber-300 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>MOBILE / RTSP INGEST • 640x360</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- D. BOTTOM SECTION: ONE-CLICK DEMO TESTER & LIVE STAFF ACTION FEED -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- One-Click Scenario Demonstrator (5 Cols) -->
+            <div class="lg:col-span-5 ops-kpi-card p-5 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i data-lucide="play-circle" class="w-4 h-4 text-cyan-400"></i> One-Click Scenario Demonstrator
+                    </h3>
+                    <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/40">Evaluation Controls</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                    <!-- Normal Store Flow -->
+                    <button onclick="setScenario('AUTO_CYCLE')" class="p-3 rounded-xl text-left bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-cyan-300">🟢 Normal Flow</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">Stock full, 0 queue</div>
+                    </button>
+
+                    <!-- Customer Browsing -->
+                    <button onclick="setScenario('CUSTOMER_OCCLUSION')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-amber-950/40 border border-white/[0.06] hover:border-amber-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-amber-300">🟡 Customer Browsing</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">Alarms suppressed</div>
+                    </button>
+
+                    <!-- Empty Shelf -->
+                    <button onclick="setScenario('RESTOCK_EMPTY')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-red-950/40 border border-white/[0.06] hover:border-red-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-red-300">🔴 Empty Shelf</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">2.0s Debounce alarm</div>
+                    </button>
+
+                    <!-- Queue Jam -->
+                    <button onclick="setScenario('QUEUE_CONGESTION')" class="p-3 rounded-xl text-left bg-surfaceInner hover:bg-purple-950/40 border border-white/[0.06] hover:border-purple-500/50 transition tactile-btn">
+                        <div class="text-xs font-bold text-purple-300">🚨 Queue Jam</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5 font-mono">&ge;2 in queue &rarr; R2 Alert</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Staff Action Feed (7 Cols) -->
+            <div class="lg:col-span-7 ops-kpi-card p-5 space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="bell" class="w-4 h-4 text-cyan-400"></i>
+                        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
+                            Live Staff Action Feed (SQLite Incidents Log)
+                        </h3>
+                        <span id="unread-alert-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">1</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleAudioChimes()" id="feed-audio-toggle-btn" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surfaceInner hover:bg-slate-800 border border-white/[0.08] text-[10px] font-mono font-bold text-slate-200 transition">
+                            <i data-lucide="volume-2" id="feed-audio-toggle-icon" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span id="feed-audio-toggle-label">Mute Sounds</span>
+                        </button>
+                        <button onclick="clearAlertFeed()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300 transition">Clear</button>
+                    </div>
+                </div>
+
+                <div id="staff-alert-feed" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                    <div class="p-3 rounded-xl border border-white/[0.06] bg-surfaceInner space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-mono font-bold text-emerald-400 uppercase flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> SYSTEM INITIALIZED
+                            </span>
+                            <span class="text-[10px] font-mono text-slate-500">Live</span>
+                        </div>
+                        <p class="text-xs font-sans text-slate-300 leading-snug">
+                            Dual-stream vision pipeline active with SQLite WAL storage & 0.0 KB/s Cloud Uplink.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- E. COLLAPSIBLE QUALCOMM & EDGE SILICON TELEMETRY DRAWER -->
+    <div id="drawer-overlay" onclick="toggleEngineeringDrawer()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden transition-opacity duration-300"></div>
+
+    <aside id="telemetry-drawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-[#0C101A] border-l border-white/10 z-50 transform translate-x-full transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] p-6 overflow-y-auto space-y-6 shadow-2xl">
+        
+        <div class="flex items-center justify-between border-b border-white/[0.08] pb-4">
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 rounded-xl bg-indigo-950 text-indigo-400 border border-indigo-800/60">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-white uppercase font-mono">Qualcomm® & Edge Specs</h2>
+                    <p class="text-xs text-slate-400">Engineering Telemetry for Judges</p>
+                </div>
+            </div>
+            <button onclick="toggleEngineeringDrawer()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Silicon Profile -->
+        <div class="space-y-3 font-mono text-xs">
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Silicon Platform</span>
+                <p class="text-sm font-bold text-white">Qualcomm® QCS6490 / RB3 Gen 2</p>
+                <p class="text-[11px] text-slate-400 font-sans">Compatible with Raspberry Pi 5 & NVIDIA Edge Gateways</p>
+            </div>
+
+            <!-- Active Inference Engine -->
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Inference Hardware</span>
+                <p id="drawer-device" class="text-sm font-bold text-cyan-300 tabular-nums">CUDA:0 (FP16 Accelerated)</p>
+                <div class="flex justify-between text-slate-400 pt-1">
+                    <span>Inference Latency:</span>
+                    <span id="drawer-latency" class="text-emerald-400 font-bold tabular-nums">7.4 ms</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>Dual Throughput:</span>
+                    <span id="drawer-throughput" class="text-cyan-300 font-bold tabular-nums">58.0 FPS Total</span>
+                </div>
+            </div>
+
+            <!-- Thermals & Load -->
+            <div class="p-4 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-2">
+                <span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Edge Thermals & Load</span>
+                <div class="flex justify-between text-slate-400">
+                    <span>SoC Core Temp:</span>
+                    <span id="drawer-temp" class="text-amber-300 font-bold tabular-nums">51.2°C</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>CPU Core Load:</span>
+                    <span id="drawer-cpu" class="text-slate-200 font-bold tabular-nums">28.4%</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>DMA Memory:</span>
+                    <span id="drawer-ram" class="text-slate-200 font-bold tabular-nums">1240 / 8192 MB</span>
+                </div>
+            </div>
+
+            <!-- Zero-Cloud Compliance -->
+            <div class="p-4 rounded-xl bg-emerald-950/40 border border-emerald-800/60 space-y-2 text-emerald-300">
+                <span class="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> DPDP Act 2023 Verified
+                </span>
+                <p class="text-xs font-sans text-emerald-200">
+                    Zero raw video frames or biometric embeddings are transmitted externally.
+                </p>
+                <div class="flex justify-between pt-1 text-slate-300">
+                    <span>Cloud Egress:</span>
+                    <span class="font-bold text-emerald-400 tabular-nums">0.00 KB/s (100% Edge Offline)</span>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="toggleEngineeringDrawer()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg">
+            Close Engineering Telemetry
+        </button>
+
+    </aside>
+
+    <!-- F. MOBILE CONNECT MODAL (QR CODE & URL) -->
+    <div id="mobile-connect-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="ops-kpi-card max-w-md w-full p-6 space-y-5 border border-white/10 shadow-2xl">
+            
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                        <i data-lucide="smartphone" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Connect Smartphone Camera</h3>
+                        <p class="text-xs text-slate-400">Stream phone camera over local Wi-Fi</p>
+                    </div>
+                </div>
+                <button onclick="toggleMobileModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- QR Code Container -->
+            <div class="flex flex-col items-center justify-center p-4 bg-surfaceInner rounded-xl border border-white/[0.04] space-y-3">
+                <div id="qr-code-container" class="flex items-center justify-center">
+                    <div class="w-44 h-44 flex items-center justify-center text-xs text-slate-500 font-mono animate-pulse">Generating QR...</div>
+                </div>
+                <p class="text-[11px] text-center text-slate-400 max-w-xs font-sans">
+                    Scan with your phone camera while connected to the same Wi-Fi network.
+                </p>
+            </div>
+
+            <!-- Direct URL & Copy Button -->
+            <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex items-center justify-between gap-2">
+                <span id="mobile-connect-url" class="text-xs font-mono text-cyan-300 truncate">http://192.168.0.7:8000/mobile_cam</span>
+                <button onclick="copyMobileUrl()" class="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-obsidian font-bold text-xs shrink-0 transition">
+                    Copy Link
+                </button>
+            </div>
+
+            <button onclick="toggleMobileModal()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
+                Done
+            </button>
+
+        </div>
+    </div>
+
+    <!-- G. INTERACTIVE ROI CALIBRATION MODAL -->
+    <div id="roi-calibration-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto hidden" onclick="if(event.target === this) closeCalibrationModal()">
+        <div class="ops-kpi-card max-w-2xl w-full max-h-[94vh] flex flex-col p-4 sm:p-5 border border-white/10 shadow-2xl my-auto">
+            
+            <!-- Modal Header with Quick Save & Close -->
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3 shrink-0">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-800/60">
+                        <i data-lucide="crosshair" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            Planogram & Queue Calibrator <span id="calib-zone-tag" class="text-xs font-mono text-cyan-300 font-normal">// TIER 1 BEVERAGES</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Drag handles or presets to adjust zone boundaries</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="saveCalibration()" class="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-obsidian font-extrabold text-xs transition flex items-center gap-1.5 shadow-md tactile-btn">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        <span>Save & Apply</span>
+                    </button>
+                    <button onclick="closeCalibrationModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 transition" title="Close (Esc)">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Modal Body -->
+            <div class="overflow-y-auto pr-1 space-y-3 flex-1 py-2">
+                <!-- Multi-Zone Target Selector Bar & Action Controls -->
+                <div class="space-y-2 p-2.5 rounded-xl bg-surfaceInner border border-white/[0.04] text-xs font-mono">
+                    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Zones & Counters:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button onclick="addNewQueueLane()" class="px-2 py-1 rounded bg-amber-950/60 hover:bg-amber-900 border border-amber-600/70 text-amber-300 text-[10px] font-bold transition flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Add Counter
+                            </button>
+                            <button onclick="addNewShelfTier()" class="px-2 py-1 rounded bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-600/70 text-cyan-300 text-[10px] font-bold transition flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Add Shelf
+                            </button>
+                            <button onclick="deleteActiveZone()" id="btn-delete-zone" class="px-2 py-1 rounded bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-300 text-[10px] font-bold transition flex items-center gap-1">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Zone Selection Buttons Container -->
+                    <div class="flex flex-wrap gap-1.5" id="calib-zone-selector">
+                        <!-- Populated dynamically via app.js -->
+                    </div>
+
+                    <!-- Active Zone Details Editor -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1.5 border-t border-white/[0.06] items-center">
+                        <div class="sm:col-span-2 flex items-center gap-2">
+                            <label class="text-[10px] text-slate-400 shrink-0">Label:</label>
+                            <input id="calib-zone-name-input" type="text" placeholder="e.g. Counter 3" oninput="updateActiveZoneName(this.value)" class="w-full px-2 py-1 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-white focus:outline-none focus:border-cyan-500 transition">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label id="calib-zone-param-label" class="text-[10px] text-slate-400 shrink-0">Threshold:</label>
+                            <input id="calib-zone-param-input" type="number" min="1" max="100" oninput="updateActiveZoneParam(this.value)" class="w-full px-2 py-1 rounded-lg bg-black/40 border border-white/10 text-xs font-mono text-white focus:outline-none focus:border-cyan-500 transition">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Canvas Interactive Viewport -->
+                <div class="relative aspect-video max-h-[260px] w-full rounded-xl overflow-hidden bg-black border border-white/10 flex items-center justify-center shadow-inner mx-auto">
+                    <canvas id="roi-calibration-canvas" width="640" height="360" class="w-full h-full object-contain roi-interactive"></canvas>
+                </div>
+
+                <!-- Coordinates & Perspective Presets Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-surfaceInner border border-white/[0.06] text-xs font-mono">
+                    <div class="text-slate-300 text-[11px]">
+                        <span>Coords: </span>
+                        <span id="calib-coords-label" class="text-cyan-300 font-bold">[X1: 0.10, Y1: 0.20 &rarr; X2: 0.90, Y2: 0.85]</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                        <button onclick="applyRoiPreset('LEFT_HALF')" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Left Col</button>
+                        <button onclick="applyRoiPreset('RIGHT_HALF')" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Right Col</button>
+                        <button onclick="applyRoiPreset('CENTER')" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Center</button>
+                        <button onclick="applyRoiPreset('FULL')" class="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/10 text-slate-300 text-[10px] transition">Full Frame</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons Footer -->
+            <div class="flex gap-3 pt-3 border-t border-white/[0.08] shrink-0">
+                <button onclick="closeCalibrationModal()" class="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition tactile-btn">
+                    Cancel (Esc)
+                </button>
+                <button onclick="saveCalibration()" class="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-obsidian font-extrabold text-xs transition shadow-lg flex items-center justify-center gap-1.5 tactile-btn">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Save Planogram & Lanes</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- H. DAILY SHIFT SUMMARY REPORT MODAL -->
+    <div id="shift-summary-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="ops-kpi-card max-w-3xl w-full p-6 space-y-5 border border-white/10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            
+            <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Daily Operational Shift Report</h3>
+                        <p class="text-xs text-slate-400 font-mono">Store #104 • SQLite WAL Persistent Store</p>
+                    </div>
+                </div>
+                <button onclick="closeShiftSummaryModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- KPI Metric Tiles Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Total Footfall</span>
+                    <p id="shift-footfall" class="text-2xl font-extrabold text-white tabular-nums">142</p>
+                    <span class="text-[10px] text-emerald-400">Shoppers tracked</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Peak Congestion</span>
+                    <p id="shift-peak-hour" class="text-base font-bold text-amber-300">14:00 - 15:00</p>
+                    <span class="text-[10px] text-slate-400">High traffic window</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Avg Wait Time</span>
+                    <p id="shift-avg-wait" class="text-2xl font-extrabold text-cyan-300 tabular-nums">1.4m</p>
+                    <span class="text-[10px] text-slate-400">Per shopper</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] space-y-1">
+                    <span class="text-[10px] text-slate-400 uppercase">Restock Alerts</span>
+                    <p id="shift-restock-count" class="text-2xl font-extrabold text-red-300 tabular-nums">3</p>
+                    <span class="text-[10px] text-slate-400">Debounced & Resolved</span>
+                </div>
+            </div>
+
+            <!-- Secondary Analytics Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Cashier Dispatches:</span>
+                    <span id="shift-dispatches" class="font-bold text-amber-300 text-sm">2</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Mean Restock Lag:</span>
+                    <span id="shift-mean-lag" class="font-bold text-emerald-300 text-sm">48.2s</span>
+                </div>
+                <div class="p-3 rounded-xl bg-surfaceInner border border-white/[0.06] flex justify-between items-center">
+                    <span class="text-slate-400">Edge Uptime:</span>
+                    <span id="shift-uptime" class="font-bold text-cyan-300 text-sm">8.5 hrs</span>
+                </div>
+            </div>
+
+            <!-- Recent Incidents Table -->
+            <div class="space-y-2">
+                <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                    Latest Incident Log (SQLite WAL Records)
+                </h4>
+                <div class="rounded-xl border border-white/[0.06] bg-surfaceInner overflow-hidden max-h-48 overflow-y-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-black/50 text-slate-400 border-b border-white/[0.06] text-[10px] uppercase">
+                            <tr>
+                                <th class="p-2.5">Time</th>
+                                <th class="p-2.5">Zone</th>
+                                <th class="p-2.5">Event</th>
+                                <th class="p-2.5">Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shift-events-tbody" class="divide-y divide-white/[0.04] text-slate-300">
+                            <tr>
+                                <td colspan="4" class="p-3 text-center text-slate-500">Loading incident records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeShiftSummaryModal()" class="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition">
+                    Close
+                </button>
+                <button onclick="exportShiftCsv()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg flex items-center justify-center gap-1.5">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span>Export Shift Log (CSV)</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Client Controller Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

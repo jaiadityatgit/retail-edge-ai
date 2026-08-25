@@ -1,0 +1,214 @@
+Here is your complete, all-in-one Master Specification Prompt.
+
+You do not need to explain anything extra to your AI coding agent. Simply copy the entire block below and paste it directly into your AI coding tool (Cursor, Claude Code, Aider, or Devin). It contains every architectural detail, edge-case protection, GPU acceleration parameter, dual-camera ingestion route, and UI design rule needed to build the complete dual-device prototype.
+
+---
+
+You are a Principal Edge AI & Embedded Systems Architect tasked with refactoring and expanding our on-device retail intelligence platform for Problem Statement SIH26179 (Qualcomm Smart Automation / Hardware Theme).
+
+================================================================================
+
+1. EXECUTIVE PROJECT OVERVIEW & ARCHITECTURAL INTENT
+================================================================================
+We are building an edge-native retail intelligence platform designed for deployment on low-power edge silicon (e.g., Qualcomm QCS6490 / RB3 Gen 2, Raspberry Pi 5).
+
+For this working prototype demonstration, the system executes locally across a Dual-Camera Topology:
+
+1. Primary Ingest (Laptop Webcam / USB Camera): Dedicated by default to Physical Shelf Inventory & Restock Monitoring.
+2. Secondary Ingest (Smartphone Camera over Local Network): Dedicated by default to Checkout Queue & Register Congestion Monitoring.
+3. Compute Engine: Laptop host running local inference with automatic hardware acceleration (NVIDIA CUDA GPU if available, with graceful CPU fallback).
+4. Connectivity & Latency: 100% on-device edge processing over local LAN / Wi-Fi / Hotspot. Zero cloud egress (0.0 KB/s external bandwidth), zero third-party cloud API dependencies, and full DPDP Act 2023 privacy-by-design compliance (raw frames processed in volatile memory and immediately discarded).
+
+# ================================================================================
+2. COMPONENT DIRECTORY STRUCTURE
+
+Ensure the repository adheres to this clean, modular architecture:
+
+retail_ai/
+├── app.py                     # Multi-stream FastAPI backend, inference engine & state manager
+├── static/
+│   ├── index.html             # Store Manager Dashboard (Clean, bright, executive UI)
+│   ├── app.js                 # Dashboard state polling, role configuration & telemetry drawer
+│   ├── mobile.html            # Lightweight HTML5 mobile camera streaming client
+│   └── presentation.html      # Interactive 5-slide pitch deck for evaluators
+├── verify_dual_cam.py         # Headless verification script testing streams, GPU & endpoints
+├── requirements.txt           # fastapi, uvicorn, ultralytics, opencv-python-headless, torch, psutil, websockets
+└── README.md                  # Comprehensive setup, networking guide, and Qualcomm edge architecture notes
+
+# ================================================================================
+3. MULTI-STREAM INGESTION & GPU ACCELERATION BACKEND (`app.py`)
+
+A. Compute & Model Initialization:
+
+* Check for PyTorch CUDA availability (`torch.cuda.is_available()`).
+* If CUDA is detected, initialize YOLOv8 (`yolov8n.pt`) on `device=0` / FP16 precision. Otherwise, run on CPU with thread optimizations.
+* Maintain separate, thread-safe frame buffers and inference queues for Camera 1 and Camera 2 to prevent thread contention or event loop starvation.
+
+B. Stream 1 (Primary Camera - Laptop / USB):
+
+* Ingest via OpenCV `cv2.VideoCapture(0)`.
+* If physical device index 0 is unavailable, seamlessly fallback to an animated synthetic OpenCV canvas displaying mock shelf items and wandering centroids.
+
+C. Stream 2 (Secondary Camera - Smartphone Streaming Client):
+
+* Provide a dual-ingestion mechanism for the mobile camera:
+1. Direct Mobile Web Client (`GET /mobile_cam`): A dedicated, mobile-friendly HTML5 page that accesses the phone's rear camera via `navigator.mediaDevices.getUserMedia` and transmits compressed JPEG frames to a backend WebSocket endpoint (`/ws/mobile_upload`) at 15–20 FPS.
+2. IP Camera URL Fallback (`POST /api/config/camera2_url`): Accepts an RTSP/HTTP MJPEG URL (e.g., from IP Webcam apps) for network IP cameras.
+
+
+* If the mobile connection drops or has not yet connected, render an elegant "Awaiting Secondary Camera Connection (Scan QR / Visit /mobile_cam)" placeholder frame rather than crashing or throwing unhandled exceptions.
+
+D. Dynamic Role Swapping & Reconfigurable State Machine:
+
+* Both cameras must support dynamic role assignment via UI/API (`POST /api/config/roles`):
+* `cam1_role`: "SHELF" | "QUEUE"
+* `cam2_role`: "QUEUE" | "SHELF"
+
+
+* **Shelf Monitoring Logic:**
+* Track retail objects: `bottle`, `cup`, `can`, `book`, `bowl`, `cell phone`.
+* Calculate stock percentage: `(current_items / max_shelf_capacity) * 100`.
+* Centroid-Shelf Interaction Matrix (CSIM) Occlusion Filter: If a `person` bounding box overlaps the Shelf Region of Interest (ROI), switch status to `CUSTOMER_BROWSING` and suppress out-of-stock alarms.
+* Out-of-Stock Debounce: If item count is 0 AND no customer occlusion is active continuously for >= 2.0 seconds, transition state to `OUT_OF_STOCK_ALERT` ("Restock Required Immediately").
+
+
+* **Queue Monitoring Logic:**
+* Detect and count `person` class centroids within the defined Queue boundary.
+* Compute estimated checkout wait time: `queue_count * 1.5` minutes.
+* Congestion Trigger: If `queue_count >= 2`, transition state to `CONGESTION_ALERT` ("Long Line Detected — Dispatch Register 2 Cashier").
+
+
+
+E. Telemetry & Video Endpoints:
+
+* `GET /`: Serves `static/index.html` (Executive Store Manager Dashboard).
+* `GET /mobile_cam`: Serves `static/mobile.html` (Mobile Camera Streamer).
+* `GET /presentation`: Serves `static/presentation.html` (Pitch Deck).
+* `GET /video_feed/cam1`: Multi-part MJPEG stream for Primary Camera with annotated bounding boxes and status HUD.
+* `GET /video_feed/cam2`: Multi-part MJPEG stream for Secondary Camera with annotated bounding boxes and status HUD.
+* `GET /api/metrics`: JSON payload providing unified operational and edge telemetry:json
+{
+"system": {
+"inference_device": "NVIDIA RTX 4060 (CUDA)" or "ARM Cortex-A76 (CPU)",
+"edge_fps": 28.4,
+"inference_latency_ms": 14.2,
+"cloud_bandwidth_egress": "0.0 KB/s (Pure Edge)",
+"dpdp_compliant": true
+},
+"cam1": {
+"role": "SHELF",
+"status": "IN_STOCK",
+"item_count": 4,
+"capacity_pct": 80,
+"is_occluded": false,
+"alert": false
+},
+"cam2": {
+"role": "QUEUE",
+"status": "CONGESTED",
+"customer_count": 3,
+"estimated_wait_min": 4.5,
+"alert": true
+},
+"timestamp": 1740000000.123
+}
+```
+
+
+```
+
+
+
+# ================================================================================
+4. STORE MANAGER DASHBOARD (`static/index.html` & `static/app.js`)
+
+Design Philosophy: Clean, bright, modern enterprise aesthetics (light slate / white background with high-contrast emerald green, amber yellow, and crimson red operational indicators). The default view is built for a non-technical Store Manager who needs clear, actionable insights at a glance.
+
+A. Top Header Navigation:
+
+* Brand Logo & Title: **RetailSense OS // Autonomous Store Operations**
+* Operational Pulse Badge: "ALL STATIONS NORMAL" (Soft Green) or "ATTENTION REQUIRED" (Pulsing Red).
+* Quick Actions:
+* "Connect Phone Camera" button (opens a modal displaying the exact local URL `http://<local_ip>:8000/mobile_cam` and a rendered QR code).
+* "Engineering Telemetry" button (opens the slide-out judge panel).
+* "Open Pitch Deck" link to `/presentation`.
+
+
+
+B. Executive KPI Cards (Top Grid):
+
+1. **Shelf Health & Inventory Card:**
+* Big visual badge: "Stock Optimal (80%)", "Customer Browsing (Alarm Suppressed)", or "CRITICAL: Aisle 1 Empty — Restock Immediate".
+* Clean animated capacity progress bar.
+* Live item count display.
+
+
+2. **Checkout & Queue Flow Card:**
+* Big visual badge: "Queue Flow Optimal" or "CONGESTION WARNING: Open Register 2".
+* Active shopper count & estimated wait time in minutes.
+
+
+
+C. Dual Live Video Monitoring Matrix:
+
+* Two video cards side-by-side:
+* Left Card: **Primary Station (Laptop Feed)** with live stream from `/video_feed/cam1` and a role selector dropdown (`[Shelf Monitor | Queue Monitor]`).
+* Right Card: **Secondary Station (Mobile Feed)** with live stream from `/video_feed/cam2` and a role selector dropdown (`[Queue Monitor | Shelf Monitor]`).
+
+
+
+D. Slide-Out Qualcomm Engineering Telemetry Drawer:
+
+* A sliding panel accessible via the top navigation toggle, specifically designed for technical evaluators.
+* Contains:
+* Target Silicon Architecture: Qualcomm Snapdragon QCS6490 / RB3 Gen 2 (Hexagon NPU).
+* Active Acceleration Engine: PyTorch CUDA / TensorRT / ONNX Runtime.
+* Pipeline Telemetry: Real-time FPS, Inference Latency (ms), Direct Memory Access (DMA) Buffer status.
+* Data Governance: DPDP Act 2023 Privacy-by-Design verification (0.0 KB/s Cloud Egress, Volatile RAM Buffer Overwrite).
+
+
+
+# ================================================================================
+5. MOBILE CAMERA CAPTURE CLIENT (`static/mobile.html`)
+
+* Clean, responsive mobile web page.
+* Requests rear camera access using `navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } })`.
+* Captures frames on an offscreen HTML5 canvas, encodes to compressed JPEG, and transmits over WebSocket (`ws://<host>:<port>/ws/mobile_upload`) at 15–20 FPS.
+* Features a prominent visual status indicator: "Streaming Live to Edge Gateway" (Green Pulse) or "Disconnected / Retrying" (Red).
+
+# ================================================================================
+6. TESTING & VERIFICATION SUITE (`verify_dual_cam.py`)
+
+* Automated script to verify the entire system before demonstration:
+1. Confirms YOLOv8 weights load correctly on the active compute device (CUDA GPU or CPU).
+2. Tests that FastAPI initializes without errors.
+3. Validates that `/`, `/mobile_cam`, `/presentation`, `/video_feed/cam1`, and `/api/metrics` return HTTP 200 responses.
+4. Tests synthetic frame generation when no physical camera is attached.
+
+
+
+# ================================================================================
+7. IMPLEMENTATION & COMMIT PROTOCOL
+
+1. Write the complete, production-ready code for all files without placeholders, truncated sections, or missing imports.
+2. Run `verify_dual_cam.py` to confirm everything passes cleanly.
+3. Initialize/stage all files in git and commit with message: `feat: implement dual-camera edge intelligence platform with mobile ingest and manager dashboard`.
+4. Output the exact terminal run command and the local URLs for both the Manager Dashboard and the Mobile Streaming Client.
+
+```
+
+***
+
+### What to Do Next (3 Simple Steps)
+
+1. **Paste the prompt into your AI agent** and let it write the code, verify the tests, and make the Git commit.
+2. **Start the server:**
+   ```bash
+   uvicorn app:app --host 0.0.0.0 --port 8000
+
+```
+
+3. **Connect your phone in 5 seconds:**
+* Open your phone's browser and go to `http://<your-laptop-ip>:8000/mobile_cam` (make sure your phone is connected to the same Wi-Fi or laptop hotspot).
+* Tap **"Start Camera"**.
+* Open `http://localhost:8000` on your laptop to see both live camera feeds updating the store dashboard in real time.

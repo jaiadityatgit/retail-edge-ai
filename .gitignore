@@ -2,6 +2,9 @@
 __pycache__/
 *.py[codz]
 *$py.class
+*.pt
+*.onnx
+*.engine
 
 # C extensions
 *.so
@@ -216,3 +219,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local TLS Certificates
+*.pem
+cert.pem
+key.pem
+
+# Local SQLite DBs
+*.db
+*.db-wal
+*.db-shm
+retail_events.db*

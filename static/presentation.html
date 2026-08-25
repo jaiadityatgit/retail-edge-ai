@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>EdgeRetail AI // SIH26179 - Executive Presentation Deck</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#090A0F',
+                        surface: {
+                            shell: '#12151E',
+                            core: '#0D1018',
+                        },
+                        brand: {
+                            cyan: '#06B6D4',
+                            emerald: '#10B981',
+                            amber: '#F59E0B',
+                            crimson: '#F43F5E',
+                            indigo: '#6366F1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+            --ease-spring: cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        body {
+            background-color: #090A0F;
+            color: #F1F5F9;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+            overflow: hidden;
+            user-select: none;
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        /* Double-Bezel Architecture */
+        .double-bezel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 1.75rem;
+            padding: 0.375rem;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+        }
+        .bezel-core {
+            background: rgba(13, 16, 24, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: calc(1.75rem - 0.375rem);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+        }
+        /* Slide Animations */
+        .slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: scale(0.97) translateY(12px);
+            pointer-events: none;
+            transition: opacity 350ms var(--ease-spring), transform 350ms var(--ease-spring);
+        }
+        .slide.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+        .slide.exit-left {
+            opacity: 0;
+            transform: scale(0.97) translateY(-12px);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen w-screen relative flex flex-col justify-between">
+
+    <!-- Subtle Ambient Lighting Mesh -->
+    <div class="fixed inset-0 pointer-events-none z-0">
+        <div class="absolute top-[-10%] left-[20%] w-[600px] h-[350px] bg-cyan-500/10 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[15%] w-[500px] h-[300px] bg-indigo-500/10 rounded-full blur-[140px]"></div>
+    </div>
+
+    <!-- TOP MINIMAL NAVIGATION BAR -->
+    <header class="relative z-20 px-8 py-5 flex items-center justify-between border-b border-white/[0.06] bg-obsidian/80 backdrop-blur-xl">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 border border-white/20">
+                <i data-lucide="cpu" class="w-4 h-4 text-white"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold tracking-tight text-white">EdgeRetail AI</span>
+                    <span class="text-xs font-mono text-cyan-400 px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-800/40">// SIH26179</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-medium">Executive Technical Presentation • Raspberry Pi 5 Edge Platform</p>
+            </div>
+        </div>
+
+        <!-- Top Right Actions -->
+        <div class="flex items-center gap-3">
+            <a href="/" class="group flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.04] hover:bg-cyan-950/50 border border-white/[0.08] hover:border-cyan-500/40 text-xs font-semibold text-slate-300 hover:text-cyan-300 transition-all duration-200 active:scale-[0.98]">
+                <span>Launch Live Dashboard</span>
+                <div class="w-5 h-5 rounded-full bg-white/10 group-hover:bg-cyan-500/20 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+                    <i data-lucide="arrow-up-right" class="w-3 h-3 text-cyan-400"></i>
+                </div>
+            </a>
+            <button onclick="toggleFullScreen()" class="w-9 h-9 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white transition active:scale-95" title="Toggle Fullscreen (F)">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- SLIDE DECK VIEWPORT CONTAINER -->
+    <main class="relative z-10 flex-1 w-full max-w-7xl mx-auto px-6 py-4 flex items-center justify-center overflow-hidden">
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 1: TITLE & EXECUTIVE SUMMARY -->
+        <!-- ================================================================= -->
+        <div class="slide active flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="1">
+            <div class="space-y-6 text-center">
+                
+                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-800/40 text-xs font-mono text-cyan-300 shadow-sm">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>PROBLEM STATEMENT SIH26179 • ON-DEVICE VISION ANALYTICS</span>
+                </div>
+
+                <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
+                    Edge-Native Retail Intelligence for Indian Supermarkets & Kiranas
+                </h1>
+
+                <p class="text-base md:text-lg text-slate-400 max-w-2xl mx-auto font-normal leading-relaxed">
+                    A self-contained, 100% offline edge vision platform delivering <strong class="text-slate-200">occlusion-aware shelf inventory tracking</strong>, <strong class="text-slate-200">predictive queue load-balancing</strong>, and <strong class="text-slate-200">DPDP 2023 privacy-by-design</strong> at sub-12W power on the Raspberry Pi 5.
+                </p>
+
+                <!-- 3 Pillar Metrics Bento -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 max-w-3xl mx-auto text-left">
+                    
+                    <div class="double-bezel">
+                        <div class="bezel-core p-4 space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-semibold">Zero Cloud Dependency</span>
+                            <div class="text-2xl font-bold font-mono text-white tabular-nums">0.0 KB/s</div>
+                            <p class="text-xs text-slate-400">100% on-device processing via volatile DMA-BUF memory.</p>
+                        </div>
+                    </div>
+
+                    <div class="double-bezel">
+                        <div class="bezel-core p-4 space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">Deterministic Latency</span>
+                            <div class="text-2xl font-bold font-mono text-white tabular-nums">&lt; 22.0 ms</div>
+                            <p class="text-xs text-slate-400">Real-time inference response vs 300–900ms cloud lag.</p>
+                        </div>
+                    </div>
+
+                    <div class="double-bezel">
+                        <div class="bezel-core p-4 space-y-1">
+                            <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold">3-Year TCO Savings</span>
+                            <div class="text-2xl font-bold font-mono text-white tabular-nums">94.9%</div>
+                            <p class="text-xs text-slate-400">₹15,000 edge appliance vs ₹2,96,000 recurring SaaS.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 2: INDIAN RETAIL BOTTLENECKS ACROSS TIERS -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="2">
+            <div class="space-y-6">
+                
+                <div>
+                    <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 1 // Problem Deconstruction</span>
+                    <h2 class="text-3xl font-bold tracking-tight text-white mt-1">Operational Bottlenecks in Indian Retail Environments</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    
+                    <!-- Tier 1: Kiranas -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3 h-full flex flex-col justify-between">
+                            <div>
+                                <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800/60 flex items-center justify-center text-cyan-400 mb-3">
+                                    <i data-lucide="store" class="w-4 h-4"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white">Unorganized Kiranas</h3>
+                                <span class="text-xs font-mono text-slate-500">500 – 1,500 sq ft</span>
+                                <ul class="text-xs text-slate-300 space-y-2 mt-3 list-disc list-inside">
+                                    <li>Extreme visual clutter & tight aisles (&lt;0.8m).</li>
+                                    <li>Frequent shopper-shelf physical occlusions.</li>
+                                    <li>Erratic broadband & dynamic IP renegotiations.</li>
+                                </ul>
+                            </div>
+                            <div class="pt-3 border-t border-white/[0.06] text-[11px] font-mono text-cyan-300">
+                                <strong>Requirement:</strong> Low-cost edge box ($140) with 100% offline persistence.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tier 2: Regional Supermarkets -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3 h-full flex flex-col justify-between">
+                            <div>
+                                <div class="w-8 h-8 rounded-lg bg-amber-950 border border-amber-800/60 flex items-center justify-center text-amber-400 mb-3">
+                                    <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white">Tier-2/3 Supermarkets</h3>
+                                <span class="text-xs font-mono text-slate-500">2,000 – 10,000 sq ft</span>
+                                <ul class="text-xs text-slate-300 space-y-2 mt-3 list-disc list-inside">
+                                    <li>Peak evening footfall surges & long checkout queues.</li>
+                                    <li>Fluorescent lighting flicker (CRI &lt; 70).</li>
+                                    <li>No automated queue balancing between registers.</li>
+                                </ul>
+                            </div>
+                            <div class="pt-3 border-t border-white/[0.06] text-[11px] font-mono text-amber-300">
+                                <strong>Requirement:</strong> Dwell-time analytics & predictive register dispatching.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tier 3: Organized Chains -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3 h-full flex flex-col justify-between">
+                            <div>
+                                <div class="w-8 h-8 rounded-lg bg-indigo-950 border border-indigo-800/60 flex items-center justify-center text-indigo-400 mb-3">
+                                    <i data-lucide="building-2" class="w-4 h-4"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white">Organized Retail Chains</h3>
+                                <span class="text-xs font-mono text-slate-500">&gt; 10,000 sq ft</span>
+                                <ul class="text-xs text-slate-300 space-y-2 mt-3 list-disc list-inside">
+                                    <li>Phantom Out-of-Stock (items in ERP, missing on shelf).</li>
+                                    <li>Continuous CCTV streaming incurs unsustainable WAN egress.</li>
+                                    <li>DPDP Act 2023 compliance risks from cloud video storage.</li>
+                                </ul>
+                            </div>
+                            <div class="pt-3 border-t border-white/[0.06] text-[11px] font-mono text-indigo-300">
+                                <strong>Requirement:</strong> Planogram validation & hardware-level privacy enforcement.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 3: DEFENSIBLE ALGORITHMIC INNOVATIONS -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="3">
+            <div class="space-y-6">
+                
+                <div>
+                    <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 2 & 3 // Algorithmic Architecture</span>
+                    <h2 class="text-3xl font-bold tracking-tight text-white mt-1">Defensible Edge Intelligence Innovations</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    
+                    <!-- Innovation 1: HPGM -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3">
+                            <span class="text-xs font-mono text-cyan-400 font-bold">INNOVATION 1</span>
+                            <h3 class="text-base font-bold text-white">HPGM</h3>
+                            <p class="text-xs font-mono text-slate-400">Hierarchical Planogram Geometric Mapping</p>
+                            <p class="text-xs text-slate-300 leading-relaxed">
+                                Maps physical multi-tier shelving into normalized 2D coordinate polygons. Isolates active inventory regions from ceiling/floor pixels, reducing spatial inference compute surface by <strong class="text-cyan-300">up to 60%</strong>.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Innovation 2: CSIM -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3">
+                            <span class="text-xs font-mono text-amber-400 font-bold">INNOVATION 2</span>
+                            <h3 class="text-base font-bold text-white">CSIM</h3>
+                            <p class="text-xs font-mono text-slate-400">Centroid-Shelf Interaction Matrix</p>
+                            <p class="text-xs text-slate-300 leading-relaxed">
+                                Continuous spatial-temporal filter monitoring human-shelf intersection vectors. Suppresses false out-of-stock alarms when customer overlaps shelf by &gt;10%, governed by a <strong class="text-amber-300">2.0s debounce state machine</strong>.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Innovation 3: TMPS -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3">
+                            <span class="text-xs font-mono text-emerald-400 font-bold">INNOVATION 3</span>
+                            <h3 class="text-base font-bold text-white">TMPS</h3>
+                            <p class="text-xs font-mono text-slate-400">Temporal Multi-Task Pipeline Splitting</p>
+                            <p class="text-xs text-slate-300 leading-relaxed">
+                                Asynchronously multiplexes person tracking (10–15 Hz), queue dwell estimation (2 Hz), and shelf depletion checks (0.1 Hz). Keeps Raspberry Pi 5 SoC duty cycle below 40% within a <strong class="text-emerald-300">sub-12W thermal envelope</strong>.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 4: MATHEMATICAL PROOFS & BENCHMARKS -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="4">
+            <div class="space-y-6">
+                
+                <div>
+                    <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 1 & 4 // Mathematical Formulations</span>
+                    <h2 class="text-3xl font-bold tracking-tight text-white mt-1">Bandwidth Conservation & Latency Proofs</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    <!-- Bandwidth Model -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">1. Bandwidth Conservation Model</h3>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/40">99.999% Reduction</span>
+                            </div>
+                            
+                            <div class="p-3 rounded-xl bg-black/50 border border-white/[0.06] font-mono text-xs text-slate-300 space-y-1.5">
+                                <div><span class="text-slate-500">Cloud CCTV:</span> B_cloud = 4 cams × 4 Mbps = 16 Mbps ≈ <strong class="text-red-400">5.184 TB / mo</strong></div>
+                                <div><span class="text-slate-500">Edge JSON:</span> B_edge = 4 × (256 B × 2 Hz) = 2.048 KB/s ≈ <strong class="text-emerald-400">5.31 MB / mo</strong></div>
+                            </div>
+
+                            <p class="text-xs text-slate-400">
+                                Raw video never leaves volatile memory buffers. Only compact JSON telemetry vectors are emitted, completely eliminating telecom recurring expenses.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Latency Model -->
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-bold text-white uppercase tracking-wider font-mono">2. Deterministic Latency Model</h3>
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/40">&lt; 25 ms Deterministic</span>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-black/50 border border-white/[0.06] font-mono text-xs text-slate-300 space-y-1.5">
+                                <div><span class="text-slate-500">Edge:</span> L_edge = t_ingest(1.5ms) + t_infer(18.2ms) + t_sm(0.3ms) = <strong class="text-cyan-400">22.0 ms</strong></div>
+                                <div><span class="text-slate-500">Cloud:</span> L_cloud = t_encode + t_uplink + t_queue + t_downlink = <strong class="text-amber-400">300 – 900 ms</strong></div>
+                            </div>
+
+                            <p class="text-xs text-slate-400">
+                                Immune to Tier-2/3 public internet jitter, enabling instant preemption of queue congestion before customers abandon carts.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 5: 3-YEAR TCO & COMMERCIAL UNIT ECONOMICS -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="5">
+            <div class="space-y-6">
+                
+                <div>
+                    <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 7 // Commercial Economics & ROI</span>
+                    <h2 class="text-3xl font-bold tracking-tight text-white mt-1">3-Year Total Cost of Ownership (TCO)</h2>
+                </div>
+
+                <!-- Clean TCO Comparison Table -->
+                <div class="double-bezel overflow-hidden">
+                    <div class="bezel-core p-0 overflow-hidden">
+                        <table class="w-full text-left text-xs font-mono">
+                            <thead class="bg-white/[0.04] text-slate-400 border-b border-white/[0.06]">
+                                <tr>
+                                    <th class="p-3.5 font-semibold">Cost Component</th>
+                                    <th class="p-3.5 font-semibold text-emerald-400">EdgeRetail AI (Proposed)</th>
+                                    <th class="p-3.5 font-semibold text-slate-400">Cloud SaaS Vision</th>
+                                    <th class="p-3.5 font-semibold text-slate-400">Manual Floor Audits</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-white/[0.04] text-slate-300">
+                                <tr>
+                                    <td class="p-3.5 text-slate-400 font-sans font-medium">Initial Hardware Setup</td>
+                                    <td class="p-3.5 text-emerald-300 font-bold">₹12,000 (Pi 5 Edge Box)</td>
+                                    <td class="p-3.5">₹8,000 (IP Cameras)</td>
+                                    <td class="p-3.5 text-slate-500">₹0</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3.5 text-slate-400 font-sans font-medium">Recurring Cloud SaaS Fees</td>
+                                    <td class="p-3.5 text-emerald-300 font-bold">₹0 / month</td>
+                                    <td class="p-3.5">₹6,000 / mo (4 cams)</td>
+                                    <td class="p-3.5 text-slate-500">₹0</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3.5 text-slate-400 font-sans font-medium">Dedicated Uplink Line</td>
+                                    <td class="p-3.5 text-emerald-300 font-bold">₹0 (Runs 100% offline)</td>
+                                    <td class="p-3.5">₹2,000 / month</td>
+                                    <td class="p-3.5 text-slate-500">₹0</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3.5 text-slate-400 font-sans font-medium">Store Audit Labor Cost</td>
+                                    <td class="p-3.5 text-emerald-300 font-bold">₹0 (Fully automated)</td>
+                                    <td class="p-3.5">₹0</td>
+                                    <td class="p-3.5 text-red-300">₹8,000 / month</td>
+                                </tr>
+                                <tr class="bg-white/[0.02] font-bold">
+                                    <td class="p-3.5 text-white font-sans">Cumulative 3-Year TCO</td>
+                                    <td class="p-3.5 text-emerald-400 text-sm">~ ₹15,000</td>
+                                    <td class="p-3.5 text-red-400 text-sm">~ ₹2,96,000</td>
+                                    <td class="p-3.5 text-amber-400 text-sm">~ ₹2,88,000</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/50 flex items-center justify-between text-xs text-emerald-200">
+                    <span><strong>Payback Period:</strong> Supermarkets recover total hardware investment in <strong>under 60 days</strong> by preventing 5% stockouts.</span>
+                    <span class="font-mono font-bold text-emerald-400">ROI &gt; 1800%</span>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 6: PRIVACY & DPDP ACT 2023 COMPLIANCE -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="6">
+            <div class="space-y-6">
+                
+                <div>
+                    <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 1 & 7 // Privacy by Design</span>
+                    <h2 class="text-3xl font-bold tracking-tight text-white mt-1">DPDP Act 2023 Compliance & Data Minimization</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-2">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800/60 flex items-center justify-center text-emerald-400 mb-2">
+                                <i data-lucide="shield" class="w-4 h-4"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-white">Volatile DMA-BUF Only</h3>
+                            <p class="text-xs text-slate-300">
+                                Frame transformations reside exclusively in RAM direct memory access buffers. Pixels are overwritten immediately after tensor extraction (&lt;33ms).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-2">
+                            <div class="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800/60 flex items-center justify-center text-cyan-400 mb-2">
+                                <i data-lucide="eye-off" class="w-4 h-4"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-white">No Biometric Ingestion</h3>
+                            <p class="text-xs text-slate-300">
+                                Zero facial recognition or biometric embeddings. The vision pipeline outputs solely anonymized bounding boxes, trajectory vectors, and zone counters.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="double-bezel">
+                        <div class="bezel-core p-5 space-y-2">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-950 border border-indigo-800/60 flex items-center justify-center text-indigo-400 mb-2">
+                                <i data-lucide="cloud-off" class="w-4 h-4"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-white">Zero WAN Leakage</h3>
+                            <p class="text-xs text-slate-300">
+                                No video clips or images ever touch persistent storage or external wide-area networks. Meets full DPDP 2023 regulations for commercial public spaces.
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDE 7: LIVE DEMONSTRATION SCRIPT -->
+        <!-- ================================================================= -->
+        <div class="slide flex flex-col justify-center max-w-5xl mx-auto w-full" data-slide="7">
+            <div class="space-y-6">
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-400 font-semibold">Module 6 // Live Demonstration Script</span>
+                        <h2 class="text-3xl font-bold tracking-tight text-white mt-1">6-Phase Physical Testbed Narrative</h2>
+                    </div>
+                    <a href="/" class="px-4 py-2 rounded-full bg-cyan-500 hover:bg-cyan-400 text-obsidian font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-lg shadow-cyan-500/20">
+                        <span>Open Live Demo</span>
+                        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                    </a>
+                </div>
+
+                <div class="double-bezel">
+                    <div class="bezel-core p-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-cyan-400 font-bold">[0:00 - 0:30] Phase 1: Baseline Quiescence</span>
+                                <p class="text-slate-300">System initializes at 100% capacity (5 items), Queue count = 0, Temp = ~50°C, Uplink = 0.0 KB/s.</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-slate-400 font-bold">[0:31 - 1:00] Phase 2: Shopper Transit</span>
+                                <p class="text-slate-300">Shopper enters Transit Zone (40–60% X). Persistent ID #101 tracks with smooth 28+ FPS.</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-amber-400 font-bold">[1:01 - 1:30] Phase 3: Shelf Occlusion</span>
+                                <p class="text-slate-300">Shopper occludes shelf products. CSIM suppresses false alarms (Status: <code>CUSTOMER_INTERACTING</code>).</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-red-400 font-bold">[1:31 - 2:00] Phase 4: Stock Depletion</span>
+                                <p class="text-slate-300">Shopper takes items & leaves. 2.0s debounce expires -> Triggers <code>OUT_OF_STOCK_ALERT</code>.</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-purple-400 font-bold">[2:01 - 2:30] Phase 5: Queue Bottleneck</span>
+                                <p class="text-slate-300">2+ shoppers line up in queue. System triggers <code>CONGESTION_WARNING</code>: "Dispatch Register 2".</p>
+                            </div>
+
+                            <div class="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                                <span class="font-mono text-emerald-400 font-bold">[2:31 - 3:00] Phase 6: Disconnection Test</span>
+                                <p class="text-slate-300">Ethernet cable unplugged. Dashboard and vision pipeline continue running 100% uninterrupted.</p>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FLOATING DOCK CONTROLS (APPLE KEYNOTE STYLE) -->
+    <footer class="relative z-20 pb-6 px-6 flex items-center justify-center">
+        <div class="px-5 py-2.5 rounded-full bg-surface-shell/90 border border-white/[0.1] backdrop-blur-2xl flex items-center gap-5 shadow-2xl">
+            
+            <!-- Prev Button -->
+            <button onclick="prevSlide()" class="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.1] flex items-center justify-center text-slate-300 hover:text-white transition active:scale-95" title="Previous Slide (←)">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Slide Dots Indicator -->
+            <div class="flex items-center gap-1.5" id="slide-dots">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Slide Counter -->
+            <span class="text-xs font-mono text-slate-400 font-semibold tabular-nums">
+                <span id="current-slide-num" class="text-cyan-400">1</span> / <span id="total-slides-num">7</span>
+            </span>
+
+            <!-- Next Button -->
+            <button onclick="nextSlide()" class="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/[0.1] flex items-center justify-center text-slate-300 hover:text-white transition active:scale-95" title="Next Slide (→ / Space)">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+
+            <div class="h-4 w-px bg-white/10 hidden sm:block"></div>
+
+            <!-- Keyboard shortcut helper -->
+            <span class="text-[11px] font-mono text-slate-500 hidden sm:inline">Use <kbd class="px-1.5 py-0.5 rounded bg-white/10 text-slate-300">←</kbd> <kbd class="px-1.5 py-0.5 rounded bg-white/10 text-slate-300">→</kbd> to navigate</span>
+
+        </div>
+    </footer>
+
+    <!-- SLIDE DECK INTERACTIVE LOGIC -->
+    <script>
+        lucide.createIcons();
+
+        let currentSlide = 1;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        document.getElementById('total-slides-num').innerText = totalSlides;
+
+        // Build Navigation Dots
+        const dotsContainer = document.getElementById('slide-dots');
+        slides.forEach((_, idx) => {
+            const dot = document.createElement('button');
+            dot.className = `w-2 h-2 rounded-full transition-all duration-300 ${idx === 0 ? 'w-6 bg-cyan-400' : 'bg-white/20 hover:bg-white/40'}`;
+            dot.onclick = () => goToSlide(idx + 1);
+            dotsContainer.appendChild(dot);
+        });
+
+        function updateSlideUI() {
+            slides.forEach((s, idx) => {
+                s.classList.remove('active', 'exit-left');
+                if (idx + 1 === currentSlide) {
+                    s.classList.add('active');
+                } else if (idx + 1 < currentSlide) {
+                    s.classList.add('exit-left');
+                }
+            });
+
+            document.getElementById('current-slide-num').innerText = currentSlide;
+
+            // Update Dots
+            Array.from(dotsContainer.children).forEach((dot, idx) => {
+                if (idx + 1 === currentSlide) {
+                    dot.className = 'w-6 h-2 rounded-full bg-cyan-400 transition-all duration-300';
+                } else {
+                    dot.className = 'w-2 h-2 rounded-full bg-white/20 hover:bg-white/40 transition-all duration-300';
+                }
+            });
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlideUI();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlideUI();
+            }
+        }
+
+        function goToSlide(n) {
+            if (n >= 1 && n <= totalSlides) {
+                currentSlide = n;
+                updateSlideUI();
+            }
+        }
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevSlide();
+            } else if (e.key === 'f' || e.key === 'F') {
+                toggleFullScreen();
+            }
+        });
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
